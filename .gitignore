@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Environment & secrets — never commit these
+.env
+.env.*
+!.env.example
+!.env.local.example
+server/.env
+client/.env.local
+
+# Build output
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# TypeScript
+*.tsbuildinfo
