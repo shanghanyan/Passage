@@ -1,6 +1,7 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
+import { connectRedis, verifyClaudeHello } from "./startup.js";
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
@@ -8,10 +9,40 @@ const port = Number(process.env.PORT) || 3001;
 app.use(cors());
 app.use(express.json());
 
-app.get("/health", (_req, res) => {
+app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-app.listen(port, () => {
-  console.log(`Passage server listening on http://localhost:${port}`);
+// Phase 0 stub — replaced with real Claude call in Phase 3
+app.post("/api/translate", (_req, res) => {
+  res.json({
+    translated_text:
+      "Phase 0 stub — your translated and explained document will appear here after Phase 3.",
+    trace_id: "phase-0-stub",
+  });
 });
+
+async function main() {
+  try {
+    const redis = await connectRedis();
+    console.log("Redis connected (PING ok)");
+    await redis.quit();
+  } catch (err) {
+    console.error("Redis startup check failed:", (err as Error).message);
+    process.exit(1);
+  }
+
+  try {
+    const hello = await verifyClaudeHello();
+    console.log(`Claude hello check ok: "${hello}"`);
+  } catch (err) {
+    console.error("Claude startup check failed:", (err as Error).message);
+    process.exit(1);
+  }
+
+  app.listen(port, () => {
+    console.log(`Passage server listening on http://localhost:${port}`);
+  });
+}
+
+main();
