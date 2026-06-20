@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Passage – Your Document, Your Language</title>
+<style>
+/* ── RESET & VARS ─────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --b50:#EFF6FF;--b100:#DBEAFE;--b200:#BFDBFE;
+  --b500:#3B82F6;--b600:#2563EB;--b700:#1D4ED8;
+  --p500:#8B5CF6;--p600:#7C3AED;
+  --a400:#FBBF24;--a500:#F59E0B;--a600:#D97706;
+  --g50:#ECFDF5;--g500:#10B981;--g600:#059669;
+  --r50:#FEF2F2;--r400:#FCA5A5;--r500:#EF4444;--r600:#DC2626;
+  --s50:#F8FAFC;--s100:#F1F5F9;--s200:#E2E8F0;--s300:#CBD5E1;
+  --s400:#94A3B8;--s500:#64748B;--s600:#475569;
+  --s700:#334155;--s800:#1E293B;--s900:#0F172A;
+  --rad-s:6px;--rad-m:10px;--rad-l:16px;--rad-xl:24px;
+  --sh-s:0 1px 3px rgba(0,0,0,.08);
+  --sh-m:0 4px 12px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);
+  --sh-l:0 10px 30px rgba(0,0,0,.10),0 4px 8px rgba(0,0,0,.05);
+  --sh-xl:0 20px 50px rgba(0,0,0,.12),0 8px 16px rgba(0,0,0,.06);
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  background:var(--s50);color:var(--s800);line-height:1.6;min-height:100vh;
+}
+.hidden{display:none!important}
+
+/* ── SCROLLBAR ─────────────────────────────────────── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--s300);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--s400)}
+
+/* ── NAV ────────────────────────────────────────────── */
+.nav{
+  position:sticky;top:0;z-index:100;
+  background:rgba(255,255,255,.93);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--s200);padding:0 24px;
+  display:flex;align-items:center;justify-content:space-between;height:64px;
+}
+.nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none;cursor:pointer}
+.nav-logo-icon{
+  width:36px;height:36px;
+  background:linear-gradient(135deg,var(--b600),var(--p600));
+  border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.nav-logo-text{
+  font-size:22px;font-weight:800;letter-spacing:-.5px;
+  background:linear-gradient(135deg,var(--b700),var(--p600));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.nav-tagline{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--s400)}
+@media(max-width:600px){.nav-tagline{display:none}}
+.nav-actions{display:flex;gap:10px;align-items:center}
+
+/* ── BUTTONS ────────────────────────────────────────── */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;font-family:inherit;
+  cursor:pointer;font-weight:500;border:none;transition:all .18s ease;
+  text-decoration:none;white-space:nowrap;
+}
+.btn-sm{padding:7px 14px;font-size:13px;border-radius:var(--rad-s)}
+.btn-md{padding:10px 20px;font-size:14px;border-radius:var(--rad-m)}
+.btn-lg{padding:14px 28px;font-size:15px;border-radius:var(--rad-m)}
+.btn-primary{
+  background:linear-gradient(135deg,var(--b600),var(--p600));color:#fff;
+  box-shadow:0 2px 8px rgba(37,99,235,.35);
+}
+.btn-primary:hover{box-shadow:0 4px 16px rgba(37,99,235,.45);transform:translateY(-1px)}
+.btn-secondary{
+  background:#fff;color:var(--s700);border:1.5px solid var(--s200);box-shadow:var(--sh-s);
+}
+.btn-secondary:hover{border-color:var(--b200);color:var(--b600);background:var(--b50)}
+.btn-ghost{background:transparent;color:var(--s500)}
+.btn-ghost:hover{color:var(--b600);background:var(--b50)}
+
+/* ── HERO / UPLOAD VIEW ─────────────────────────────── */
+.hero{
+  padding:80px 24px 60px;text-align:center;
+  background:linear-gradient(160deg,#fff 0%,#eef2ff 50%,#fff 100%);
+  position:relative;overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(99,102,241,.12),transparent);
+}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--b50);border:1px solid var(--b200);color:var(--b700);
+  font-size:12px;font-weight:600;padding:5px 12px;border-radius:999px;
+  margin-bottom:24px;letter-spacing:.04em;
+}
+.hero-badge-dot{width:6px;height:6px;border-radius:50%;background:var(--b500);display:inline-block}
+.hero-title{
+  font-size:clamp(36px,6vw,60px);font-weight:800;line-height:1.15;
+  color:var(--s900);margin-bottom:20px;letter-spacing:-.5px;
+}
+.hero-title em{
+  font-style:normal;
+  background:linear-gradient(135deg,var(--b600),var(--p500));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.hero-subtitle{
+  font-size:clamp(16px,2.5vw,19px);color:var(--s500);
+  max-width:580px;margin:0 auto 40px;line-height:1.7;
+}
+
+/* ── UPLOAD CARD ─────────────────────────────────────── */
+.upload-card{
+  max-width:540px;margin:0 auto 60px;
+  background:#fff;border-radius:var(--rad-xl);
+  box-shadow:var(--sh-xl);padding:32px;border:1px solid var(--s200);
+}
+.upload-zone{
+  border:2px dashed var(--s300);border-radius:var(--rad-l);
+  padding:44px 24px;text-align:center;cursor:pointer;
+  transition:all .2s ease;background:var(--s50);
+}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--b400);background:var(--b50)}
+.upload-zone-icon{font-size:44px;display:block;margin-bottom:12px}
+.upload-zone h3{font-size:16px;font-weight:600;color:var(--s700);margin-bottom:6px}
+.upload-zone p{font-size:13px;color:var(--s400)}
+.upload-formats{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+.format-tag{
+  font-size:11px;font-weight:600;padding:3px 8px;border-radius:4px;
+  background:var(--s100);color:var(--s500);text-transform:uppercase;letter-spacing:.05em;
+}
+#file-input{display:none}
+.upload-lang-row{
+  display:flex;gap:12px;align-items:center;margin-top:18px;flex-wrap:wrap;
+}
+.upload-lang-row label{font-size:13px;font-weight:600;color:var(--s600);white-space:nowrap}
+.select-styled{
+  flex:1;min-width:0;padding:9px 32px 9px 12px;font-family:inherit;font-size:13px;
+  border:1.5px solid var(--s200);border-radius:var(--rad-s);
+  background:#fff;color:var(--s700);cursor:pointer;outline:none;
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%2364748B' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;
+}
+.select-styled:focus{border-color:var(--b400);box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+.demo-btn-row{margin-top:20px;text-align:center}
+.demo-btn-row > p{font-size:12px;color:var(--s400);margin-bottom:10px}
+.demo-chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.demo-chip{
+  font-size:12px;font-weight:500;padding:6px 14px;border-radius:999px;
+  border:1.5px solid var(--b200);color:var(--b600);background:var(--b50);
+  cursor:pointer;transition:all .15s;font-family:inherit;
+}
+.demo-chip:hover{background:var(--b600);color:#fff;border-color:var(--b600)}
+
+/* ── FEATURES GRID ───────────────────────────────────── */
+.features-grid{
+  max-width:960px;margin:0 auto;padding:0 24px 80px;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;
+}
+.feature-card{
+  border-radius:var(--rad-l);padding:24px;
+  border:1px solid var(--s200);box-shadow:var(--sh-s);
+  transition:all .2s ease;
+}
+.feature-card:hover{box-shadow:var(--sh-m);transform:translateY(-2px)}
+.feature-icon{
+  width:44px;height:44px;border-radius:var(--rad-m);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;margin-bottom:14px;
+}
+.feature-card h4{font-size:14px;font-weight:700;margin-bottom:6px;color:var(--s800)}
+.feature-card p{font-size:13px;color:var(--s500);line-height:1.55}
+
+/* ── ANALYSIS VIEW ───────────────────────────────────── */
+.analysis-header{
+  background:#fff;border-bottom:1px solid var(--s200);
+  padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+}
+.doc-meta{flex:1;min-width:160px}
+.doc-title{font-size:16px;font-weight:700;color:var(--s800)}
+.doc-subtitle{font-size:12px;color:var(--s400);margin-top:2px}
+.doc-badge{
+  font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;
+  background:var(--g50);color:var(--g600);border:1px solid rgba(16,185,129,.25);
+  white-space:nowrap;
+}
+.header-lang{font-size:13px;font-weight:600;color:var(--s700)}
+
+/* ── TABS ────────────────────────────────────────────── */
+.tab-bar{
+  background:#fff;border-bottom:1px solid var(--s200);
+  padding:0 24px;display:flex;overflow-x:auto;position:sticky;top:64px;z-index:90;
+}
+.tab-btn{
+  padding:14px 16px;font-family:inherit;font-size:13px;font-weight:500;
+  border:none;background:none;cursor:pointer;color:var(--s500);
+  display:flex;align-items:center;gap:6px;white-space:nowrap;
+  border-bottom:2.5px solid transparent;transition:all .18s;margin-bottom:-1px;
+}
+.tab-btn:hover{color:var(--b600)}
+.tab-btn.active{color:var(--b600);border-bottom-color:var(--b600);font-weight:600}
+.tab-content{padding:24px;max-width:1400px;margin:0 auto}
+
+/* ── TRANSLATION TAB ─────────────────────────────────── */
+.translation-toolbar{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:12px;margin-bottom:20px;
+}
+.trans-info{font-size:14px;color:var(--s500)}
+.trans-info strong{color:var(--s700)}
+.translation-panels{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:768px){.translation-panels{grid-template-columns:1fr}}
+.trans-panel{
+  background:#fff;border-radius:var(--rad-l);
+  border:1px solid var(--s200);box-shadow:var(--sh-s);overflow:hidden;
+}
+.trans-panel-header{
+  padding:14px 18px;border-bottom:1px solid var(--s100);
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--s50);gap:10px;flex-wrap:wrap;
+}
+.lang-info{display:flex;align-items:center;gap:8px}
+.lang-flag{font-size:20px;flex-shrink:0}
+.lang-name{font-size:13px;font-weight:600;color:var(--s700)}
+.lang-native{font-size:11px;color:var(--s400)}
+.trans-panel-body{padding:20px}
+.trans-paragraph{display:flex;gap:12px;margin-bottom:20px;align-items:flex-start}
+.trans-paragraph:last-child{margin-bottom:0}
+.para-text{
+  font-size:14px;line-height:1.78;color:var(--s700);flex:1;
+  border-radius:6px;transition:background .2s,padding .2s;
+}
+.para-text.lit{background:rgba(59,130,246,.08);padding:8px;margin:-8px}
+.speak-btn{
+  flex-shrink:0;width:32px;height:32px;border-radius:50%;
+  border:1.5px solid var(--s200);background:#fff;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--s400);transition:all .18s;margin-top:2px;
+}
+.speak-btn:hover{border-color:var(--b400);color:var(--b500);background:var(--b50)}
+.speak-btn.speaking{
+  border-color:var(--b500);color:var(--b600);background:var(--b50);
+  animation:pulse-ring 1.1s ease infinite;
+}
+@keyframes pulse-ring{
+  0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,.4)}
+  50%{box-shadow:0 0 0 6px rgba(59,130,246,0)}
+}
+.read-all-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:6px 12px;border-radius:999px;border:1.5px solid var(--s200);
+  background:#fff;cursor:pointer;font-size:12px;font-weight:500;color:var(--s600);
+  font-family:inherit;transition:all .18s;white-space:nowrap;
+}
+.read-all-btn:hover{border-color:var(--b400);color:var(--b600)}
+.stop-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:7px 14px;border-radius:999px;border:1.5px solid var(--r400);
+  background:var(--r50);cursor:pointer;font-size:12px;font-weight:600;
+  color:var(--r600);font-family:inherit;transition:all .18s;
+}
+.stop-btn:hover{background:var(--r500);color:#fff;border-color:var(--r500)}
+
+/* ── SUMMARY TAB ─────────────────────────────────────── */
+.summary-header-card{
+  background:linear-gradient(135deg,var(--b600),var(--p600));
+  border-radius:var(--rad-l);padding:28px 32px;margin-bottom:24px;color:#fff;
+}
+.summary-header-card h2{font-size:20px;font-weight:700;margin-bottom:6px}
+.summary-header-card p{font-size:14px;opacity:.85}
+.reading-badge{
+  display:inline-flex;align-items:center;gap:6px;margin-top:14px;
+  background:rgba(255,255,255,.2);padding:5px 12px;border-radius:999px;
+  font-size:12px;font-weight:600;
+}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:700px){.summary-grid{grid-template-columns:1fr}}
+.summary-card{
+  background:#fff;border-radius:var(--rad-l);padding:24px;
+  border:1px solid var(--s200);box-shadow:var(--sh-s);
+}
+.summary-card h3{
+  font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--s400);margin-bottom:14px;display:flex;align-items:center;gap:7px;
+}
+.key-list{list-style:none}
+.key-list li{
+  display:flex;gap:10px;margin-bottom:12px;
+  font-size:14px;line-height:1.6;color:var(--s700);
+}
+.key-list li::before{content:'✓';color:var(--g500);font-weight:700;flex-shrink:0;margin-top:1px}
+.vocab-item{
+  margin-bottom:14px;padding-bottom:14px;
+  border-bottom:1px solid var(--s100);
+}
+.vocab-item:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.vocab-term{font-size:14px;font-weight:600;color:var(--b600);margin-bottom:3px}
+.vocab-def{font-size:13px;color:var(--s600);line-height:1.55}
+.meaning-card{
+  grid-column:1/-1;
+  background:var(--a500);border-radius:var(--rad-l);padding:26px;color:#fff;border:none;
+}
+.meaning-card h3{color:rgba(255,255,255,.8)}
+.meaning-card p{font-size:15px;line-height:1.7;margin-top:4px}
+.info-bar{
+  margin-top:20px;padding:14px 18px;background:var(--b50);
+  border-radius:var(--rad-m);border:1px solid var(--b100);
+  font-size:13px;color:var(--b700);display:flex;gap:10px;line-height:1.55;
+}
+
+/* ── PRIVACY TAB ─────────────────────────────────────── */
+.privacy-toolbar{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:12px;margin-bottom:20px;
+}
+.toggle-row{display:flex;align-items:center;gap:10px}
+.toggle-label{font-size:13px;font-weight:600;color:var(--s700)}
+.toggle{position:relative;display:inline-block;width:44px;height:24px}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{
+  position:absolute;inset:0;border-radius:999px;
+  background:var(--s300);cursor:pointer;transition:.25s;
+}
+.toggle-slider::before{
+  content:'';position:absolute;width:18px;height:18px;
+  left:3px;top:3px;border-radius:50%;background:#fff;
+  transition:.25s;box-shadow:0 1px 3px rgba(0,0,0,.2);
+}
+.toggle input:checked + .toggle-slider{background:var(--b600)}
+.toggle input:checked + .toggle-slider::before{transform:translateX(20px)}
+.copy-btn{
+  padding:8px 14px;font-size:12px;font-weight:600;border-radius:var(--rad-s);
+  border:1.5px solid var(--s200);background:#fff;cursor:pointer;
+  color:var(--s600);display:flex;align-items:center;gap:6px;
+  transition:all .18s;font-family:inherit;
+}
+.copy-btn:hover{border-color:var(--g400);color:var(--g600)}
+.privacy-grid{display:grid;grid-template-columns:1fr 1.6fr;gap:20px}
+@media(max-width:900px){.privacy-grid{grid-template-columns:1fr}}
+.pii-sidebar{display:flex;flex-direction:column;gap:12px}
+.pii-card{
+  background:#fff;border-radius:var(--rad-l);padding:20px;
+  border:1px solid var(--s200);box-shadow:var(--sh-s);
+}
+.pii-card h3{font-size:14px;font-weight:700;margin-bottom:14px;color:var(--s700)}
+.pii-stat{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.pii-stat-lbl{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--s600)}
+.pii-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.pii-count{
+  font-size:12px;font-weight:700;color:var(--s800);
+  background:var(--s100);padding:2px 8px;border-radius:999px;
+}
+.pii-type-list{display:flex;flex-direction:column;gap:8px}
+.pii-type-item{
+  display:flex;align-items:flex-start;gap:10px;padding:11px;
+  border-radius:var(--rad-s);border:1px solid var(--s200);background:var(--s50);
+}
+.pii-badge{
+  font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;
+  text-transform:uppercase;letter-spacing:.04em;flex-shrink:0;margin-top:1px;
+}
+.b-name{background:rgba(239,68,68,.12);color:#b91c1c}
+.b-id{background:rgba(217,119,6,.15);color:#92400e}
+.b-addr{background:rgba(16,185,129,.12);color:#065f46}
+.b-date{background:rgba(139,92,246,.12);color:#5b21b6}
+.pii-nm{font-size:13px;font-weight:600;color:var(--s700)}
+.pii-ds{font-size:12px;color:var(--s400);margin-top:2px}
+.doc-panel{
+  background:#fff;border-radius:var(--rad-l);
+  border:1px solid var(--s200);box-shadow:var(--sh-s);overflow:hidden;
+}
+.doc-panel-hdr{
+  padding:14px 20px;background:var(--s50);border-bottom:1px solid var(--s100);
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;
+}
+.doc-panel-hdr h3{font-size:14px;font-weight:600;color:var(--s700)}
+.doc-panel-body{padding:24px}
+.doc-text-block{font-size:14px;line-height:1.85;color:var(--s700);margin-bottom:18px}
+.doc-text-block:last-child{margin-bottom:0}
+/* PII spans */
+.pii{
+  display:inline-block;background:var(--s800);color:transparent;
+  border-radius:3px;padding:1px 4px;min-width:80px;
+  vertical-align:middle;margin:0 2px;user-select:none;
+  transition:background .2s,color .2s;
+}
+.pii.shown.t-name{background:rgba(239,68,68,.15);color:#b91c1c;border:1px dashed #f87171}
+.pii.shown.t-id  {background:rgba(217,119,6,.15); color:#92400e;border:1px dashed #fbbf24}
+.pii.shown.t-addr{background:rgba(16,185,129,.15); color:#065f46;border:1px dashed #6ee7b7}
+.pii.shown.t-date{background:rgba(139,92,246,.15); color:#5b21b6;border:1px dashed #c4b5fd}
+.doc-legend{
+  display:flex;gap:12px;flex-wrap:wrap;padding:12px 20px;
+  border-top:1px solid var(--s100);background:var(--s50);
+}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:500;color:var(--s500)}
+.legend-dot{width:10px;height:10px;border-radius:3px}
+
+/* ── DOCUMENTS TAB ───────────────────────────────────── */
+.process-banner{
+  background:linear-gradient(135deg,#0f172a,#1e3a5f);
+  border-radius:var(--rad-l);padding:28px 32px;margin-bottom:20px;
+  color:#fff;display:flex;align-items:center;
+  justify-content:space-between;flex-wrap:wrap;gap:16px;
+}
+.process-banner h2{font-size:20px;font-weight:700;margin-bottom:4px}
+.process-banner p{font-size:14px;opacity:.75;max-width:480px;line-height:1.55}
+.process-id{font-size:30px;font-weight:800;opacity:.15;letter-spacing:-1px}
+.disclaimer{
+  background:var(--a500);color:#fff;border-radius:var(--rad-m);
+  padding:14px 18px;margin-bottom:24px;font-size:13px;font-weight:500;
+  display:flex;gap:10px;align-items:flex-start;line-height:1.55;
+}
+.section-lbl{
+  font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--s400);margin-bottom:12px;margin-top:24px;
+  display:flex;align-items:center;gap:8px;
+}
+.section-lbl:first-child{margin-top:0}
+.section-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.docs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(272px,1fr));gap:14px}
+.doc-card{
+  background:#fff;border-radius:var(--rad-m);padding:18px;
+  border:1px solid var(--s200);box-shadow:var(--sh-s);
+  transition:all .2s;display:flex;gap:14px;
+}
+.doc-card:hover{box-shadow:var(--sh-m);border-color:var(--b200)}
+.doc-card-ico{
+  width:42px;height:42px;border-radius:var(--rad-s);
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;flex-shrink:0;
+}
+.doc-card-body{flex:1}
+.doc-code{
+  font-size:11px;font-weight:700;letter-spacing:.05em;
+  padding:2px 7px;border-radius:4px;display:inline-block;margin-bottom:5px;
+}
+.cat-req .doc-code{background:rgba(16,185,129,.1);color:var(--g600)}
+.cat-req .doc-card-ico{background:var(--g50)}
+.cat-sup .doc-code{background:var(--b50);color:var(--b600)}
+.cat-sup .doc-card-ico{background:var(--b50)}
+.cat-con .doc-code{background:rgba(139,92,246,.1);color:var(--p600)}
+.cat-con .doc-card-ico{background:rgba(139,92,246,.06)}
+.doc-name{font-size:14px;font-weight:600;color:var(--s800);margin-bottom:4px}
+.doc-desc{font-size:12px;color:var(--s500);line-height:1.5}
+.doc-agency{font-size:11px;color:var(--s400);margin-top:6px;font-weight:500}
+
+/* ── FOOTER ──────────────────────────────────────────── */
+.footer{
+  text-align:center;padding:32px 24px;
+  font-size:12px;color:var(--s400);
+  border-top:1px solid var(--s200);background:#fff;
+}
+.footer-logo{font-size:18px;font-weight:800;color:var(--s600);margin-bottom:6px;letter-spacing:-.5px}
+.footer a{color:var(--b500);text-decoration:none}
+
+/* ── TOAST ───────────────────────────────────────────── */
+#toast{
+  position:fixed;bottom:24px;right:24px;z-index:9999;
+  background:var(--s800);color:#fff;padding:12px 20px;
+  border-radius:var(--rad-m);font-size:13px;font-weight:500;
+  box-shadow:var(--sh-xl);animation:slide-up .3s ease;
+}
+@keyframes slide-up{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+</style>
+</head>
+<body>
+
+<!-- ══ NAV ══════════════════════════════════════════════ -->
+<nav class="nav">
+  <div class="nav-logo" onclick="goBack()">
+    <div class="nav-logo-icon">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M11 2C11 2 4 5 4 11.5C4 16 7.5 20 11 20C14.5 20 18 16 18 11.5C18 5 11 2 11 2Z"
+          fill="rgba(255,255,255,.25)" stroke="white" stroke-width="1.5"/>
+        <path d="M11 6V16M8 9L11 6L14 9" stroke="white" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <span class="nav-logo-text">Passage</span>
+  </div>
+  <span class="nav-tagline">Your Document, Your Language</span>
+  <div class="nav-actions">
+    <button id="nav-back-btn" class="btn btn-sm btn-ghost hidden" onclick="goBack()">
+      ← Back
+    </button>
+    <button class="btn btn-sm btn-secondary">Help</button>
+    <button class="btn btn-sm btn-primary">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+      Get Started
+    </button>
+  </div>
+</nav>
+
+<!-- ══ UPLOAD VIEW ═══════════════════════════════════════ -->
+<div id="view-upload">
+  <section class="hero">
+    <div class="hero-badge"><span class="hero-badge-dot"></span> Trusted by Immigrant Communities</div>
+    <h1 class="hero-title">Your documents,<br><em>in your language.</em></h1>
+    <p class="hero-subtitle">
+      Passage translates immigration documents side-by-side with voice playback, protects your
+      private information, summarizes in simple English, and shows what other forms you may need —
+      all in one place.
+    </p>
+
+    <div class="upload-card">
+      <div class="upload-zone" id="upload-zone">
+        <span class="upload-zone-icon">📄</span>
+        <h3>Drop your document here</h3>
+        <p>or click to browse files</p>
+        <div class="upload-formats">
+          <span class="format-tag">PDF</span>
+          <span class="format-tag">JPG</span>
+          <span class="format-tag">PNG</span>
+          <span class="format-tag">DOCX</span>
+        </div>
+        <input type="file" id="file-input" accept=".pdf,.jpg,.png,.docx"/>
+      </div>
+
+      <div class="upload-lang-row">
+        <label for="upload-lang-sel">Translate to:</label>
+        <select id="upload-lang-sel" class="select-styled"></select>
+      </div>
+
+      <div class="demo-btn-row">
+        <p>Or try a sample document:</p>
+        <div class="demo-chips" id="demo-chips"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="features-grid">
+    <div class="feature-card" style="background:#EFF6FF">
+      <div class="feature-icon" style="background:#DBEAFE">🌐</div>
+      <h4>Side-by-Side Translation</h4>
+      <p>See your document in the original and your language at once, with voice playback for every paragraph.</p>
+    </div>
+    <div class="feature-card" style="background:#ECFDF5">
+      <div class="feature-icon" style="background:#D1FAE5">🔒</div>
+      <h4>Privacy Protection</h4>
+      <p>Automatically detects and redacts names, addresses, ID numbers, and other sensitive personal data.</p>
+    </div>
+    <div class="feature-card" style="background:#FFFBEB">
+      <div class="feature-icon" style="background:#FEF3C7">📖</div>
+      <h4>Simple English Summary</h4>
+      <p>Key points explained in plain, easy-to-understand English — perfect if you are still learning.</p>
+    </div>
+    <div class="feature-card" style="background:#F5F3FF">
+      <div class="feature-icon" style="background:#EDE9FE">📋</div>
+      <h4>Document Checklist</h4>
+      <p>Passage identifies your document's process and lists all commonly associated forms needed.</p>
+    </div>
+  </section>
+</div>
+
+<!-- ══ ANALYSIS VIEW ════════════════════════════════════ -->
+<div id="view-analysis" class="hidden">
+
+  <!-- Doc Header -->
+  <div class="analysis-header">
+    <button class="btn btn-sm btn-ghost" onclick="goBack()">← Back</button>
+    <div class="doc-meta">
+      <div class="doc-title">Form I-485</div>
+      <div class="doc-subtitle">Application to Register Permanent Residence or Adjust Status</div>
+    </div>
+    <span class="doc-badge">✓ Analyzed</span>
+    <div id="header-lang" class="header-lang"></div>
+  </div>
+
+  <!-- Tab Bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="translation" onclick="showTab(this)">🌐 Translation</button>
+    <button class="tab-btn" data-tab="summary"     onclick="showTab(this)">📖 Simple Summary</button>
+    <button class="tab-btn" data-tab="privacy"     onclick="showTab(this)">🔒 Privacy</button>
+    <button class="tab-btn" data-tab="documents"   onclick="showTab(this)">📋 Documents Needed</button>
+  </div>
+
+  <!-- ─ TRANSLATION PANEL ─────────────────────────────── -->
+  <div id="panel-translation" class="tab-panel">
+    <div class="tab-content">
+      <div class="translation-toolbar">
+        <div id="trans-info" class="trans-info"></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label for="trans-lang-sel" style="font-size:13px;font-weight:600;color:var(--s600)">Language:</label>
+          <select id="trans-lang-sel" class="select-styled" onchange="changeLang(this.value)" style="flex:0 1 220px"></select>
+          <button id="stop-btn" class="stop-btn hidden" onclick="stopAll()">✕ Stop Audio</button>
+        </div>
+      </div>
+      <div class="translation-panels">
+        <div id="orig-panel"></div>
+        <div id="trans-panel"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─ SUMMARY PANEL ──────────────────────────────────── -->
+  <div id="panel-summary" class="tab-panel hidden">
+    <div class="tab-content">
+      <div class="summary-header-card">
+        <h2>📖 Simple English Summary</h2>
+        <p>Key points explained in plain language — perfect for beginner English speakers.</p>
+        <div class="reading-badge">📚 Reading Level: Grade 5 &nbsp;·&nbsp; Beginner Friendly</div>
+      </div>
+      <div class="summary-grid">
+        <div class="summary-card">
+          <h3>📝 What This Document Says</h3>
+          <ul class="key-list">
+            <li>This is a form to apply for a Green Card (permanent residence) in the United States.</li>
+            <li>You must already be inside the United States to use this form.</li>
+            <li>You need to have a visa number available for your category.</li>
+            <li>You must read all instructions carefully before filling out the form.</li>
+            <li>You must pay a filing fee — this fee cannot be returned to you.</li>
+            <li>Keep copies of everything you submit for your own records.</li>
+            <li>USCIS is the government agency that reviews your application.</li>
+          </ul>
+        </div>
+        <div class="summary-card">
+          <h3>📚 Words to Know</h3>
+          <div class="vocab-item">
+            <div class="vocab-term">Lawful Permanent Resident</div>
+            <div class="vocab-def">A person allowed to live and work in the US permanently. Also called a "Green Card holder."</div>
+          </div>
+          <div class="vocab-item">
+            <div class="vocab-term">Adjust Status</div>
+            <div class="vocab-def">Changing your immigration status while you remain inside the United States.</div>
+          </div>
+          <div class="vocab-item">
+            <div class="vocab-term">Immigrant Visa Number</div>
+            <div class="vocab-def">A number showing there is a Green Card available for you right now. The "Visa Bulletin" shows if your number is ready.</div>
+          </div>
+          <div class="vocab-item">
+            <div class="vocab-term">Priority Date</div>
+            <div class="vocab-def">The date your visa petition was filed. It determines your place in line for a Green Card.</div>
+          </div>
+          <div class="vocab-item">
+            <div class="vocab-term">USCIS</div>
+            <div class="vocab-def">U.S. Citizenship and Immigration Services — the government office that processes immigration applications.</div>
+          </div>
+          <div class="vocab-item">
+            <div class="vocab-term">Filing Fee</div>
+            <div class="vocab-def">The money you pay when submitting your form. It is not returned even if the application is denied.</div>
+          </div>
+        </div>
+        <div class="summary-card meaning-card">
+          <h3>💡 What This Means For You</h3>
+          <p>This form — <strong>Form I-485</strong> — is how you apply for your <strong>Green Card</strong> without leaving the United States. A Green Card means you can <strong>live and work in the US permanently</strong>. You fill out this form, pay the fee, and USCIS will review your application. They may schedule an interview with you. This process takes time, so save copies of everything.</p>
+        </div>
+      </div>
+      <div class="info-bar">
+        ℹ️ <span>This summary is for educational purposes to help you understand the document. For guidance specific to your situation, consult a licensed immigration attorney or accredited representative.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─ PRIVACY PANEL ───────────────────────────────────── -->
+  <div id="panel-privacy" class="tab-panel hidden">
+    <div class="tab-content">
+      <div class="privacy-toolbar">
+        <div style="font-size:14px;font-weight:600;color:var(--s700)">
+          🔒 Privacy Protection —
+          <span style="color:var(--s500);font-weight:400">9 pieces of personal information detected</span>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <div class="toggle-row">
+            <span class="toggle-label" id="toggle-label">Redacted</span>
+            <label class="toggle">
+              <input type="checkbox" id="privacy-toggle" onchange="togglePrivacy(this.checked)"/>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <button class="copy-btn" onclick="copyRedacted()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            Copy Redacted
+          </button>
+        </div>
+      </div>
+
+      <div class="privacy-grid">
+        <!-- Sidebar -->
+        <div class="pii-sidebar">
+          <div class="pii-card">
+            <h3>Detected Information</h3>
+            <div class="pii-stat">
+              <div class="pii-stat-lbl"><span class="pii-dot" style="background:#ef4444"></span> Full Names</div>
+              <span class="pii-count">3</span>
+            </div>
+            <div class="pii-stat">
+              <div class="pii-stat-lbl"><span class="pii-dot" style="background:#f59e0b"></span> ID / SSN Numbers</div>
+              <span class="pii-count">3</span>
+            </div>
+            <div class="pii-stat">
+              <div class="pii-stat-lbl"><span class="pii-dot" style="background:#10b981"></span> Addresses</div>
+              <span class="pii-count">2</span>
+            </div>
+            <div class="pii-stat">
+              <div class="pii-stat-lbl"><span class="pii-dot" style="background:#8b5cf6"></span> Dates of Birth</div>
+              <span class="pii-count">1</span>
+            </div>
+          </div>
+          <div class="pii-card">
+            <h3>What Was Found</h3>
+            <div class="pii-type-list">
+              <div class="pii-type-item">
+                <span class="pii-badge b-name">Name</span>
+                <div><div class="pii-nm">Applicant Full Name</div><div class="pii-ds">Your legal first, middle &amp; last name</div></div>
+              </div>
+              <div class="pii-type-item">
+                <span class="pii-badge b-id">A-#</span>
+                <div><div class="pii-nm">Alien Registration Number</div><div class="pii-ds">Your A-Number (A-XXXXXXXXX)</div></div>
+              </div>
+              <div class="pii-type-item">
+                <span class="pii-badge b-addr">Addr</span>
+                <div><div class="pii-nm">Home Address</div><div class="pii-ds">Street address and ZIP code</div></div>
+              </div>
+              <div class="pii-type-item">
+                <span class="pii-badge b-date">DOB</span>
+                <div><div class="pii-nm">Date of Birth</div><div class="pii-ds">Your full birth date</div></div>
+              </div>
+              <div class="pii-type-item">
+                <span class="pii-badge b-id">SSN</span>
+                <div><div class="pii-nm">Social Security Number</div><div class="pii-ds">SSN used for identification</div></div>
+              </div>
+              <div class="pii-type-item">
+                <span class="pii-badge b-name">Name</span>
+                <div><div class="pii-nm">Sponsor Full Name</div><div class="pii-ds">Petitioner's legal name</div></div>
+              </div>
+              <div class="pii-type-item">
+                <span class="pii-badge b-addr">Addr</span>
+                <div><div class="pii-nm">Sponsor Address</div><div class="pii-ds">Sponsor's mailing address</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Document Preview -->
+        <div class="doc-panel">
+          <div class="doc-panel-hdr">
+            <h3 id="panel-hdr-title">Document Preview — 🔒 Redacted Version</h3>
+          </div>
+          <div class="doc-panel-body">
+            <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--s400);margin-bottom:16px">
+              USCIS Form I-485 — Sample Excerpt
+            </p>
+            <div class="doc-text-block">
+              <strong>Applicant Information</strong><br><br>
+              Full Legal Name:&nbsp;<span class="pii t-name" data-val="Maria Elena Rodriguez-Vasquez">████████████████████</span><br>
+              Alien Registration Number:&nbsp;<span class="pii t-id" data-val="A-204-873-651">████████████</span><br>
+              Date of Birth:&nbsp;<span class="pii t-date" data-val="March 14, 1989">████████████</span><br>
+              Current Address:&nbsp;<span class="pii t-addr" data-val="4721 Maple Street, Apt 3B, Houston, TX 77002">████████████████████████████████████████</span>
+            </div>
+            <div class="doc-text-block">
+              <strong>Petitioner / Sponsor Information</strong><br><br>
+              Sponsor Name:&nbsp;<span class="pii t-name" data-val="James Robert Henderson">████████████████████</span><br>
+              Relationship: Spouse (U.S. Citizen)<br>
+              Social Security Number:&nbsp;<span class="pii t-id" data-val="XXX-XX-4892">████████████</span><br>
+              Address:&nbsp;<span class="pii t-addr" data-val="4721 Maple Street, Apt 3B, Houston, TX 77002">████████████████████████████████████████</span>
+            </div>
+            <div class="doc-text-block">
+              <strong>Declaration</strong><br><br>
+              I,&nbsp;<span class="pii t-name" data-val="Maria Elena Rodriguez-Vasquez">████████████████████</span>, certify, under penalty of perjury under the laws of the United States of America, that this application and the evidence submitted with it is all true and correct. I authorize the release of any information from my records that USCIS needs to determine my eligibility for the immigration benefit I am seeking.
+            </div>
+            <div class="doc-text-block">
+              Applicant's A-Number:&nbsp;<span class="pii t-id" data-val="A-204-873-651">████████████</span><br>
+              Filing Date: November 3, 2024<br>
+              Receipt Number: IOE-2024-1103-XXXX
+            </div>
+          </div>
+          <div class="doc-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#fca5a5"></div> Full Names</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#fcd34d"></div> ID / SSN Numbers</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#6ee7b7"></div> Addresses</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#c4b5fd"></div> Dates of Birth</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─ DOCUMENTS PANEL ────────────────────────────────── -->
+  <div id="panel-documents" class="tab-panel hidden">
+    <div class="tab-content">
+      <div class="process-banner">
+        <div>
+          <h2>🏛 Process Identified: Adjustment of Status (Green Card)</h2>
+          <p>Passage has analyzed this document and identified it as part of the Adjustment of Status process. Below is a list of documents commonly associated with this process.</p>
+        </div>
+        <div class="process-id">I-485</div>
+      </div>
+      <div class="disclaimer">
+        ⚠️ <span><strong>Informational Only — Not Legal Advice.</strong> The documents listed below are commonly associated with this process and are provided for general awareness only. Every immigration case is different. Please consult a licensed immigration attorney or an accredited representative for advice specific to your situation.</span>
+      </div>
+      <div id="docs-content"></div>
+    </div>
+  </div>
+
+</div><!-- /view-analysis -->
+
+<!-- ══ FOOTER ════════════════════════════════════════════ -->
+<footer class="footer">
+  <div class="footer-logo">Passage</div>
+  <p>Empowering immigrants through accessible document translation.</p>
+  <p style="margin-top:6px">
+    Passage provides informational tools only and does not offer legal advice.&nbsp;
+    <a href="#">Privacy Policy</a> &nbsp;·&nbsp; <a href="#">Terms of Use</a> &nbsp;·&nbsp; <a href="#">Accessibility</a>
+  </p>
+</footer>
+
+<div id="toast" class="hidden"></div>
+
+<!-- ══════════════════════════════════════════════════════
+     JAVASCRIPT — no external dependencies
+════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ── DATA ──────────────────────────────────────────────── */
+const LANGUAGES = [
+  { code:'es', name:'Spanish',       native:'Español',     flag:'🇪🇸', bcp47:'es-ES' },
+  { code:'fr', name:'French',        native:'Français',    flag:'🇫🇷', bcp47:'fr-FR' },
+  { code:'zh', name:'Chinese',       native:'中文',         flag:'🇨🇳', bcp47:'zh-CN' },
+  { code:'ar', name:'Arabic',        native:'العربية',      flag:'🇸🇦', bcp47:'ar-SA' },
+  { code:'hi', name:'Hindi',         native:'हिन्दी',       flag:'🇮🇳', bcp47:'hi-IN' },
+  { code:'pt', name:'Portuguese',    native:'Português',   flag:'🇧🇷', bcp47:'pt-BR' },
+  { code:'ru', name:'Russian',       native:'Русский',     flag:'🇷🇺', bcp47:'ru-RU' },
+  { code:'vi', name:'Vietnamese',    native:'Tiếng Việt',  flag:'🇻🇳', bcp47:'vi-VN' },
+  { code:'ko', name:'Korean',        native:'한국어',        flag:'🇰🇷', bcp47:'ko-KR' },
+  { code:'tl', name:'Tagalog',       native:'Filipino',    flag:'🇵🇭', bcp47:'fil-PH' },
+  { code:'ht', name:'Haitian Creole',native:'Kreyòl',      flag:'🇭🇹', bcp47:'fr-HT' },
+  { code:'uk', name:'Ukrainian',     native:'Українська',  flag:'🇺🇦', bcp47:'uk-UA' },
+  { code:'am', name:'Amharic',       native:'አማርኛ',        flag:'🇪🇹', bcp47:'am-ET' },
+];
+
+const EN_PARAGRAPHS = [
+  "Form I-485, Application to Register Permanent Residence or Adjust Status, is used by a person who is in the United States to apply to adjust their immigration status to that of a lawful permanent resident, or to have the date their lawful permanent residence began changed. Filing this form is a critical step in obtaining a Green Card.",
+  "You may be eligible to file Form I-485 if you have an immediately available immigrant visa number and you meet all other eligibility requirements. An immigrant visa number is immediately available to you if the priority date for your preference category on the Visa Bulletin is current as published by the Department of State.",
+  "Before completing this application, please read the instructions carefully. Failure to follow the instructions or to provide required evidence may delay or prevent the U.S. Citizenship and Immigration Services (USCIS) from processing your application. We recommend that you keep a copy of your completed application and all supporting documents for your personal records.",
+  "You must pay the required filing fee for this application unless you qualify for a fee exemption or fee waiver. The filing fee is non-refundable, regardless of any action USCIS takes on this application, or if you withdraw your request. Do not mail cash. You must submit the exact amount."
+];
+
+const TRANSLATIONS = {
+  es: [
+    "El Formulario I-485, Solicitud para Registrar Residencia Permanente o Ajustar Estatus, es utilizado por una persona que se encuentra en los Estados Unidos para solicitar el ajuste de su estatus migratorio al de residente permanente legal, o para cambiar la fecha de inicio de su residencia permanente legal. Presentar este formulario es un paso crucial para obtener la Tarjeta Verde.",
+    "Puede ser elegible para presentar el Formulario I-485 si tiene un número de visa de inmigrante disponible de inmediato y cumple con todos los demás requisitos de elegibilidad. Un número de visa de inmigrante está disponible de inmediato si la fecha de prioridad para su categoría en el Boletín de Visas está vigente según lo publicado por el Departamento de Estado.",
+    "Antes de completar esta solicitud, lea las instrucciones cuidadosamente. No seguir las instrucciones o no proporcionar la evidencia requerida puede retrasar o impedir que USCIS procese su solicitud. Le recomendamos que guarde una copia de su solicitud completa y todos los documentos de respaldo para sus registros personales.",
+    "Debe pagar la tarifa de presentación requerida a menos que califique para una exención o dispensa de tarifa. La tarifa no es reembolsable, independientemente de cualquier acción que USCIS tome, o si retira su solicitud. No envíe efectivo por correo. Debe enviar el monto exacto."
+  ],
+  fr: [
+    "Le formulaire I-485, Demande d'enregistrement de résidence permanente ou d'ajustement de statut, est utilisé par une personne se trouvant aux États-Unis pour demander l'ajustement de son statut d'immigration à celui de résident permanent légal, ou pour modifier la date de début de sa résidence permanente. Le dépôt de ce formulaire est une étape cruciale pour obtenir la Carte verte.",
+    "Vous pouvez être éligible pour déposer le formulaire I-485 si vous avez un numéro de visa d'immigrant immédiatement disponible et si vous remplissez toutes les autres conditions d'éligibilité. Un numéro de visa est immédiatement disponible si la date de priorité pour votre catégorie dans le Bulletin des visas est courante selon le Département d'État.",
+    "Avant de remplir cette demande, veuillez lire attentivement les instructions. Le non-respect des instructions ou le défaut de fournir les pièces justificatives requises peut retarder ou empêcher les Services de citoyenneté et d'immigration (USCIS) de traiter votre demande. Nous vous recommandons de conserver une copie de votre demande complète et de tous les documents justificatifs.",
+    "Vous devez payer les frais de dépôt requis, sauf si vous êtes admissible à une exemption ou dispense de frais. Les frais de dépôt ne sont pas remboursables, quelle que soit la décision prise par l'USCIS ou si vous retirez votre demande. N'envoyez pas d'argent liquide. Vous devez soumettre le montant exact."
+  ],
+  zh: [
+    "I-485表格（登记永久居留权或调整身份的申请）供在美国境内的人士提交，用以申请将其移民身份调整为合法永久居民，或更改其合法永久居留开始日期。提交此表格是申请绿卡的关键步骤。",
+    "如果您拥有立即可用的移民签证号码，并且符合所有其他资格要求，您可能有资格提交I-485表格。如果国务院发布的签证公告中您的优先类别优先日期已到，则移民签证号码对您立即可用。",
+    "在填写此申请之前，请仔细阅读说明。不遵循说明或未能提供所需证据可能会延迟或阻止美国公民及移民服务局（USCIS）处理您的申请。我们建议您保留已完成申请和所有支持文件的副本以供个人记录。",
+    "您必须为此申请支付所需的申请费，除非您符合费用豁免或减免资格。无论USCIS对此申请采取任何行动，还是您撤回申请，申请费均不予退还。请勿邮寄现金。您必须提交确切金额。"
+  ]
+};
+
+// Placeholder for languages without full demo translation
+function placeholderTranslation(langName) {
+  return EN_PARAGRAPHS.map((p, i) => `[${langName} translation — paragraph ${i+1}] ${p}`);
+}
+
+const RELATED_DOCS = {
+  required: [
+    { code:'I-130',  name:'Petition for Alien Relative',              emoji:'👨‍👩‍👧', desc:'Filed by a U.S. citizen or LPR to establish a qualifying family relationship.',   agency:'USCIS' },
+    { code:'I-864',  name:'Affidavit of Support',                     emoji:'📋', desc:'Demonstrates the sponsor has sufficient income to financially support the immigrant.', agency:'USCIS' },
+    { code:'I-693',  name:'Medical Examination Report',               emoji:'🏥', desc:'Completed by a USCIS-authorized civil surgeon to meet health admissibility standards.', agency:'USCIS / Civil Surgeon' },
+    { code:'—',      name:'Valid Passport',                           emoji:'🛂', desc:'Must be valid for at least 6 months beyond the intended period of stay.',              agency:'Issuing Country' },
+    { code:'I-94',   name:'Arrival / Departure Record',               emoji:'✈️', desc:'CBP record of the most recent lawful entry into the United States.',                   agency:'CBP / cbp.dhs.gov' },
+    { code:'—',      name:'Two Passport-Style Photos',                emoji:'📷', desc:'Recent color photos meeting USCIS requirements (2" × 2", white background).',         agency:'Photographer' },
+    { code:'—',      name:'Birth Certificate',                        emoji:'📄', desc:'Official birth record with certified English translation if not originally in English.',agency:'Issuing Country' },
+  ],
+  supporting: [
+    { code:'—', name:'Police Clearance Certificates',          emoji:'🚔', desc:'May be required from every country where you lived 6+ months since age 16.',         agency:'Local Authorities' },
+    { code:'—', name:'Marriage Certificate',                   emoji:'💍', desc:'If applying based on marriage; certified English translation required if needed.',   agency:'Issuing Authority' },
+    { code:'—', name:'Divorce Decrees',                        emoji:'⚖️', desc:'Required if either spouse was previously married.',                                  agency:'Court' },
+    { code:'—', name:'Proof of Financial Support / Tax Returns',emoji:'💰', desc:'Evidence supporting the Affidavit of Support — recent IRS tax transcripts or W-2s.',agency:'IRS / Employer' },
+    { code:'—', name:'Military Records',                       emoji:'🎖️', desc:'Required if the applicant has any military service history in any country.',         agency:'Military Authority' },
+  ],
+  concurrent: [
+    { code:'I-765', name:'Application for Employment Authorization', emoji:'💼', desc:'Allows the applicant to work in the U.S. while the I-485 is pending (EAD card).',   agency:'USCIS' },
+    { code:'I-131', name:'Application for Travel Document (Advance Parole)', emoji:'🌍', desc:'Allows travel outside the U.S. without abandoning the pending adjustment application.',agency:'USCIS' },
+    { code:'I-944', name:'Declaration of Self-Sufficiency',          emoji:'📊', desc:'Required for applications filed on or after Feb 24, 2020 to demonstrate financial independence.', agency:'USCIS' },
+  ]
+};
+
+/* ── SVG ICONS ─────────────────────────────────────────── */
+const ICO_VOL = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>`;
+const ICO_STOP = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`;
+const ICO_CHECK = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+/* ── STATE ──────────────────────────────────────────────── */
+let currentLang    = 'es';
+let speakQueue     = [];
+let activeSpeakBtn = null;
+let toastTimer     = null;
+
+/* ── HELPERS ────────────────────────────────────────────── */
+function esc(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function showToast(msg, ms = 2400) {
+  const el = document.getElementById('toast');
+  el.textContent = '✓ ' + msg;
+  el.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), ms);
+}
+
+function getLang(code) {
+  return LANGUAGES.find(l => l.code === code) || LANGUAGES[0];
+}
+
+/* ── VIEW SWITCHING ─────────────────────────────────────── */
+function goBack() {
+  stopAll();
+  document.getElementById('view-upload').classList.remove('hidden');
+  document.getElementById('view-analysis').classList.add('hidden');
+  document.getElementById('nav-back-btn').classList.add('hidden');
+  document.getElementById('privacy-toggle').checked = false;
+  document.querySelectorAll('.pii').forEach(el => {
+    el.textContent = '████████████████████';
+    el.classList.remove('shown');
+  });
+  document.getElementById('toggle-label').textContent = 'Redacted';
+  document.getElementById('panel-hdr-title').textContent = 'Document Preview — 🔒 Redacted Version';
+}
+
+function loadDoc(lang) {
+  currentLang = lang || document.getElementById('upload-lang-sel').value || 'es';
+  document.getElementById('view-upload').classList.add('hidden');
+  document.getElementById('view-analysis').classList.remove('hidden');
+  document.getElementById('nav-back-btn').classList.remove('hidden');
+
+  // Set language selectors
+  document.getElementById('trans-lang-sel').value = currentLang;
+  updateHeaderLang();
+  renderPanels();
+  renderDocCards();
+  resetTabButtons();
+  showTabById('panel-translation');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ── TAB SWITCHING ──────────────────────────────────────── */
+function resetTabButtons() {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-btn[data-tab="translation"]').forEach(b => b.classList.add('active'));
+}
+
+function showTab(btn) {
+  const tabId = btn.getAttribute('data-tab');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  showTabById('panel-' + tabId);
+  stopAll();
+}
+
+function showTabById(id) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
+
+/* ── LANGUAGE ────────────────────────────────────────────── */
+function changeLang(code) {
+  currentLang = code;
+  stopAll();
+  renderTransPanel();
+  updateHeaderLang();
+  updateTransInfo();
+}
+
+function updateHeaderLang() {
+  const l = getLang(currentLang);
+  document.getElementById('header-lang').textContent = l.flag + ' ' + l.name;
+}
+
+function updateTransInfo() {
+  const l = getLang(currentLang);
+  document.getElementById('trans-info').innerHTML =
+    '<strong>Form I-485</strong> &nbsp;·&nbsp; 4 paragraphs &nbsp;·&nbsp; ' + l.flag + ' Translating to ' + l.name;
+}
+
+/* ── RENDER PANELS ───────────────────────────────────────── */
+function renderPanels() {
+  renderOrigPanel();
+  renderTransPanel();
+  updateTransInfo();
+}
+
+function buildParas(texts, langBcp47, side) {
+  return texts.map((text, i) =>
+    `<div class="trans-paragraph" id="${side}-para-${i}">
+       <p class="para-text">${esc(text)}</p>
+       <button class="speak-btn"
+         data-text="${esc(text)}"
+         data-lang="${esc(langBcp47)}"
+         data-side="${side}"
+         data-idx="${i}"
+         title="Listen to this paragraph"
+         onclick="speakBtnClick(this)">${ICO_VOL}</button>
+     </div>`
+  ).join('');
+}
+
+function renderOrigPanel() {
+  document.getElementById('orig-panel').innerHTML =
+    `<div class="trans-panel">
+       <div class="trans-panel-header">
+         <div class="lang-info">
+           <span class="lang-flag">🇺🇸</span>
+           <div>
+             <div class="lang-name">English</div>
+             <div class="lang-native">Original</div>
+           </div>
+         </div>
+         <button class="read-all-btn" onclick="readAll('orig')">${ICO_VOL} Read All</button>
+       </div>
+       <div class="trans-panel-body" id="orig-body">
+         ${buildParas(EN_PARAGRAPHS, 'en-US', 'orig')}
+       </div>
+     </div>`;
+}
+
+function renderTransPanel() {
+  const l = getLang(currentLang);
+  const texts = TRANSLATIONS[currentLang] || placeholderTranslation(l.name);
+  document.getElementById('trans-panel').innerHTML =
+    `<div class="trans-panel">
+       <div class="trans-panel-header">
+         <div class="lang-info">
+           <span class="lang-flag">${l.flag}</span>
+           <div>
+             <div class="lang-name">${l.name}</div>
+             <div class="lang-native">${l.native}</div>
+           </div>
+         </div>
+         <button class="read-all-btn" onclick="readAll('trans')">${ICO_VOL} Read All</button>
+       </div>
+       <div class="trans-panel-body" id="trans-body">
+         ${buildParas(texts, l.bcp47, 'trans')}
+       </div>
+     </div>`;
+}
+
+/* ── DOCUMENT CARDS ─────────────────────────────────────── */
+function renderDocCards() {
+  const sections = [
+    { key:'required',   label:'Core Forms & Required Documents', color:'var(--g500)',  cat:'cat-req' },
+    { key:'supporting', label:'Supporting & Evidentiary Documents', color:'var(--b500)', cat:'cat-sup' },
+    { key:'concurrent', label:'Commonly Filed at the Same Time',  color:'var(--p500)', cat:'cat-con' },
+  ];
+  let html = '';
+  sections.forEach(s => {
+    const docs = RELATED_DOCS[s.key];
+    html += `<div class="section-lbl"><span class="section-dot" style="background:${s.color}"></span>${s.label} (${docs.length})</div>`;
+    html += `<div class="docs-grid">`;
+    docs.forEach(d => {
+      html += `<div class="doc-card ${s.cat}">
+        <div class="doc-card-ico">${d.emoji}</div>
+        <div class="doc-card-body">
+          <span class="doc-code">${esc(d.code)}</span>
+          <div class="doc-name">${esc(d.name)}</div>
+          <div class="doc-desc">${esc(d.desc)}</div>
+          <div class="doc-agency">📌 ${esc(d.agency)}</div>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  html += `<div class="info-bar" style="margin-top:24px">ℹ️ <span>Document requirements vary based on individual circumstances, visa category, and country of origin. This list is for informational awareness only. Passage does not provide legal advice.</span></div>`;
+  document.getElementById('docs-content').innerHTML = html;
+}
+
+/* ── SPEECH ──────────────────────────────────────────────── */
+function stopAll() {
+  window.speechSynthesis.cancel();
+  speakQueue = [];
+  if (activeSpeakBtn) {
+    activeSpeakBtn.innerHTML = ICO_VOL;
+    activeSpeakBtn.classList.remove('speaking');
+    // remove highlight
+    const para = activeSpeakBtn.closest('.trans-paragraph');
+    if (para) para.querySelector('.para-text').classList.remove('lit');
+    activeSpeakBtn = null;
+  }
+  // clear any other lingering highlights
+  document.querySelectorAll('.para-text.lit').forEach(el => el.classList.remove('lit'));
+  document.getElementById('stop-btn').classList.add('hidden');
+}
+
+function doSpeak(btn) {
+  if (!btn) return;
+  const text = btn.getAttribute('data-text');
+  const lang = btn.getAttribute('data-lang');
+
+  activeSpeakBtn = btn;
+  btn.innerHTML = ICO_STOP;
+  btn.classList.add('speaking');
+  const para = btn.closest('.trans-paragraph');
+  if (para) para.querySelector('.para-text').classList.add('lit');
+  document.getElementById('stop-btn').classList.remove('hidden');
+
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.lang = lang;
+  utt.onend = utt.onerror = () => {
+    btn.innerHTML = ICO_VOL;
+    btn.classList.remove('speaking');
+    if (para) para.querySelector('.para-text').classList.remove('lit');
+    activeSpeakBtn = null;
+    if (speakQueue.length > 0) {
+      doSpeak(speakQueue.shift());
+    } else {
+      document.getElementById('stop-btn').classList.add('hidden');
+    }
+  };
+  window.speechSynthesis.speak(utt);
+}
+
+function speakBtnClick(btn) {
+  if (btn === activeSpeakBtn) { stopAll(); return; }
+  stopAll();
+  doSpeak(btn);
+}
+
+function readAll(side) {
+  stopAll();
+  const bodyId = side === 'orig' ? 'orig-body' : 'trans-body';
+  const body = document.getElementById(bodyId);
+  if (!body) return;
+  const btns = Array.from(body.querySelectorAll('.speak-btn'));
+  if (btns.length === 0) return;
+  speakQueue = btns.slice(1);
+  doSpeak(btns[0]);
+}
+
+/* ── PRIVACY ─────────────────────────────────────────────── */
+function togglePrivacy(reveal) {
+  document.querySelectorAll('.pii').forEach(el => {
+    if (reveal) {
+      el.textContent = el.getAttribute('data-val');
+      el.classList.add('shown');
+    } else {
+      el.textContent = '████████████████████';
+      el.classList.remove('shown');
+    }
+  });
+  document.getElementById('toggle-label').textContent = reveal ? 'Showing originals' : 'Redacted';
+  document.getElementById('panel-hdr-title').textContent = reveal
+    ? 'Document Preview — ⚠️ Original (Sensitive Data Visible)'
+    : 'Document Preview — 🔒 Redacted Version';
+}
+
+function copyRedacted() {
+  const body = document.getElementById('panel-privacy').querySelector('.doc-panel-body');
+  // Build redacted-only text
+  const clone = body.cloneNode(true);
+  clone.querySelectorAll('.pii').forEach(el => {
+    el.textContent = '[REDACTED]';
+  });
+  const text = clone.innerText || clone.textContent;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => showToast('Redacted document copied to clipboard'));
+  } else {
+    showToast('Copy not available in this browser');
+  }
+}
+
+/* ── INIT ────────────────────────────────────────────────── */
+function init() {
+  // Populate language dropdowns
+  const opts = LANGUAGES.map(l =>
+    `<option value="${l.code}">${l.flag} ${l.name} — ${l.native}</option>`
+  ).join('');
+  document.getElementById('upload-lang-sel').innerHTML = opts;
+  document.getElementById('trans-lang-sel').innerHTML  = opts;
+  document.getElementById('upload-lang-sel').value = 'es';
+  document.getElementById('trans-lang-sel').value  = 'es';
+
+  // Demo chips
+  const chips = [
+    { label:'🇪🇸 I-485 — Spanish',  lang:'es' },
+    { label:'🇫🇷 I-485 — French',   lang:'fr' },
+    { label:'🇨🇳 I-485 — Chinese',  lang:'zh' },
+  ];
+  document.getElementById('demo-chips').innerHTML = chips.map(c =>
+    `<button class="demo-chip" onclick="loadDoc('${c.lang}')">${c.label}</button>`
+  ).join('');
+
+  // Upload zone interactions
+  const zone = document.getElementById('upload-zone');
+  const inp  = document.getElementById('file-input');
+
+  zone.addEventListener('click', () => inp.click());
+  inp.addEventListener('change', () => loadDoc(document.getElementById('upload-lang-sel').value));
+
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    loadDoc(document.getElementById('upload-lang-sel').value);
+  });
+
+  // Logo click → go back
+  document.querySelector('.nav-logo').addEventListener('click', e => {
+    e.preventDefault();
+    if (!document.getElementById('view-analysis').classList.contains('hidden')) goBack();
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
