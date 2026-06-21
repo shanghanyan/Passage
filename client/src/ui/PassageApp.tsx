@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useLauncherSession } from "../hooks/useLauncherSession";
 import { usePassageFlow } from "../hooks/usePassageFlow";
 import { AnalysisView } from "./AnalysisView";
+import { EditRedactPhase } from "./EditRedactPhase";
 import { InputPhase } from "./InputPhase";
 import { LoadingState } from "./LoadingState";
 import { PrivacyTab } from "./PrivacyTab";
@@ -20,10 +21,24 @@ export function PassageApp() {
 
   useEffect(() => {
     const nav = document.getElementById("mainNav");
-    const onScroll = () => nav?.classList.toggle("stuck", window.scrollY > 40);
+    if (!nav) return;
+
+    const syncNavHeight = () => {
+      document.documentElement.style.setProperty("--nav-height", `${nav.offsetHeight}px`);
+    };
+
+    syncNavHeight();
+    const ro = new ResizeObserver(syncNavHeight);
+    ro.observe(nav);
+
+    const onScroll = () => nav.classList.toggle("stuck", window.scrollY > 40);
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
-    return () => window.removeEventListener("scroll", onScroll);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
   const showResults = flow.phase === "done" || flow.phase === "blocked" || flow.phase === "translating";
@@ -31,10 +46,17 @@ export function PassageApp() {
   return (
     <div className="passage-shell passage-workflow">
       <nav className="nav" id="mainNav">
-        <button type="button" className="nav-logo" onClick={flow.startOver} style={{ border: "none", background: "none" }}>
-          <div className="nav-cross">✛</div>
-          <div className="nav-wordmark">PASSAGE</div>
-        </button>
+        <div className="nav-row">
+          <button type="button" className="nav-logo" onClick={flow.startOver} style={{ border: "none", background: "none" }}>
+            <div className="nav-cross">✛</div>
+            <div className="nav-wordmark">PASSAGE</div>
+          </button>
+          {flow.phase !== "input" && flow.phase !== "edit" && (
+            <button type="button" className="nav-cta" onClick={flow.startOver}>
+              <i className="ti ti-file-plus" /> New document
+            </button>
+          )}
+        </div>
         <div className="workflow-phase-strip">
           {(["input", "preview", "translating", "done"] as const).map((step) => {
             const active =
@@ -43,7 +65,7 @@ export function PassageApp() {
               (step === "translating" && flow.phase === "translating");
             const reached =
               (step === "input") ||
-              (step === "preview" && flow.phase !== "input") ||
+              (step === "preview" && (flow.phase !== "input" && flow.phase !== "edit")) ||
               (step === "translating" && (flow.phase === "translating" || flow.phase === "done" || flow.phase === "blocked")) ||
               (step === "done" && (flow.phase === "done" || flow.phase === "blocked"));
             return (
@@ -53,16 +75,13 @@ export function PassageApp() {
             );
           })}
         </div>
-        {flow.phase !== "input" && (
-          <button type="button" className="nav-cta" onClick={flow.startOver}>
-            <i className="ti ti-file-plus" /> New document
-          </button>
-        )}
       </nav>
 
       <main className="passage-main workflow-main">
         <div className="workflow-inner">
           {flow.phase === "input" && <InputPhase flow={flow} />}
+
+          {flow.phase === "edit" && <EditRedactPhase flow={flow} />}
 
           {flow.phase === "preview" && (
             <section className="workflow-card">
@@ -92,7 +111,7 @@ export function PassageApp() {
         <LoadingState
           variant="overlay"
           title="Translating with Claude"
-          subtitle="Sending redacted tokens only, validating Claude's response, then reinserting values on your screen."
+          subtitle="Sending redacted tokens only and validating Claude's response before display."
         />
       )}
 

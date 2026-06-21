@@ -6,13 +6,13 @@ export interface DetectedSpan {
   end: number;
   value: string;
   confidence?: number;
-  source?: "regex" | "ner";
+  source?: "regex" | "ner" | "manual";
 }
 
 export interface TokenMeta {
   type: PiiType;
   confidence?: number;
-  source?: "regex" | "ner";
+  source?: "regex" | "ner" | "manual";
 }
 
 export interface RedactionResult {

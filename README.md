@@ -28,15 +28,19 @@ cp client/.env.local.example client/.env.local   # optional — browser Sentry
 | Variable | Purpose |
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude translation + voice Q&A |
+| `UPSTASH_REDIS_REST_URL` | Upstash session registration (PII-free marker) |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash REST credentials |
 | `SENTRY_DSN` | Server error monitoring |
 | `DEEPGRAM_API_KEY` | Voice transcription + TTS |
 
-**Optional:**
+For **Arize AX Cloud** traces with `npm run launch -- --cloud`, also set `ARIZE_SPACE_ID` and `ARIZE_API_KEY` ([app.arize.com](https://app.arize.com) → Settings).
+
+**Optional Redis Cloud** (voice memory + FAQ cache — redacted text only):
 
 | Variable | Purpose |
 |---|---|
-| `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | Legacy endpoint only — token maps are **not** persisted |
-| `ARIZE_SPACE_ID` + `ARIZE_API_KEY` | Arize AX Cloud traces |
+| `AGENT_MEMORY_URL` + `AGENT_MEMORY_STORE_ID` + `AGENT_MEMORY_API_KEY` | Multi-turn voice Q&A |
+| `LANGCACHE_URL` + `LANGCACHE_CACHE_ID` + `LANGCACHE_API_KEY` | Semantic cache for repeated voice questions |
 
 4. **macOS only — allow double-click launch** (once):
 
@@ -73,7 +77,7 @@ npm run launch -- --cloud
 
 ## Configure secrets (reference)
 
-The server refuses to start without working Claude credentials. See [First-time setup](#first-time-setup) for the required variables.
+The server refuses to start without working Redis and Claude credentials. See [First-time setup](#first-time-setup) for the required variables.
 
 ### Observability — pick one at launch
 
@@ -99,9 +103,9 @@ Both modes use the same OpenTelemetry + OpenInference stack — Claude traces an
 
 **Launcher vs `.env`:** `Launch Passage.app` / `launch.mjs` asks which backend to use (macOS dialog) or accepts `--local` / `--cloud`. That choice is passed to the server for that session and **overrides** `OBSERVABILITY_TARGET` in `.env`. For `npm run dev` without the launcher, `.env` controls the target.
 
-### Redis Agent (disabled — no server persistence)
+### Redis Agent (optional — voice memory + FAQ cache)
 
-Agent Memory and LangCache are **not used** — voice Q&A does not save turns or cache answers. Code remains in `server/src/lib/` for reference only.
+Create both services at [cloud.redis.io](https://cloud.redis.io) when you want multi-turn voice or cache hits. Only redacted/tokenized text is stored.
 
 ### Client (`client/.env.local`)
 
@@ -117,24 +121,39 @@ Agent Memory and LangCache are **not used** — voice Q&A does not save turns or
 flowchart TB
   subgraph browser [Browser]
     Detect[Detect + Redact]
-    TokenMap["tokenMap in memory only"]
     Send[Send for Translation]
   end
 
+  subgraph upstash [Upstash Redis]
+    Session["session marker · TTL 15m · no raw PII"]
+  end
+
+  subgraph redisCloud [Redis Cloud optional]
+    AM[Agent Memory · redacted Q&A turns]
+    LC[LangCache · redacted FAQ cache]
+  end
+
   subgraph server [Passage Server]
-    Translate["/api/translate"]
+    Mint["/api/redaction-session-token"]
     VQ["/api/voice/question"]
     OTEL["OTEL → Phoenix or Arize AX"]
   end
 
-  Detect --> TokenMap
-  Send --> Translate
-  Translate --> Claude[Claude API]
-  VQ --> Claude
+  Detect --> Send
+  Send --> Mint
+  Mint --> Session
+  VQ --> AM
+  VQ --> LC
+  VQ --> Claude[Claude API]
+  Send --> Claude
   server --> OTEL
 ```
 
-**Privacy rule:** After redaction, text stays tokenized through translation, voice Q&A, TTS read-back, and on-screen display. Raw PII is never written to Redis, Agent Memory, LangCache, or any server store.
+**Redis roles:**
+
+1. **Upstash** — ephemeral session marker on translate (scoped creds; no raw PII stored)
+2. **Agent Memory** — optional voice conversation history (tokenized turns only)
+3. **LangCache** — optional semantic cache for paraphrased voice questions on the same redacted doc
 
 ---
 
@@ -155,7 +174,7 @@ flowchart TB
 | **In-browser detection** | Hand-written regex + `Xenova/bert-base-NER` via Transformers.js — zero network calls after first model load |
 | **Explicit send gate** | Nothing hits the network until **Send for translation** |
 | **Token format** | `⟦PII:TYPE:n⟧` — placeholders only in Claude payloads |
-| **No server persistence** | Token maps stay in browser memory only — not saved to Upstash or any backend |
+| **No raw PII in Redis** | Upstash stores a session marker only; Agent Memory / LangCache store redacted text only |
 | **Tokenized display** | Translation and voice answers show tokens, not reinserted raw values |
 | **Pre-send leakage scan** | Blocks translate if raw PII survived redaction — Sentry alert |
 | **Post-Claude validation** | Token check + raw-leak scan fails closed; no partial render |
@@ -181,6 +200,8 @@ flowchart TB
 - Deepgram Nova-3 STT in the **document target language** (client token or server-proxy — key never in browser)
 - Client-side **voice question redaction** before Claude (`prepareVoiceQuestion`)
 - Voice answers validated fail-closed; display and TTS stay tokenized
+- Multi-turn Q&A via **Redis Agent Memory** when configured
+- **LangCache** instant answers for repeated FAQ on same doc
 - Explanation-only TTS read-back on Translation and Voice tabs (play/pause)
 - Mic disclaimer: *"Please type any ID numbers — don't say them out loud"*
 
@@ -238,9 +259,7 @@ Failures logged in [`08-error-log.md`](08-error-log.md).
 
 ## Vanisha merge note
 
-Ported from teammate fork: priority-based span merge, audit cases, `DetectionTest` dev harness (`?detection-test`), verification scripts (validation, regex, redact, demo-network, tokenized-ui, planted-block, sentry-browser), demo script (`09-demo-script.md`), and Sentry payload audit. Core privacy change: **no Redis token persistence, no reinsertion** — redacted throughout.
-
-Dev harness: `http://localhost:5173/?detection-test`
+Verification tooling and detection audit cases from the teammate fork are integrated into this repo. The separate `Vanisha project/` copy was removed after porting.
 
 ---
 

@@ -1,6 +1,10 @@
 /* App-specific overrides on top of passage-v2.css */
 :root {
-  --nav-height: 76px;
+  --nav-height: 112px;
+}
+
+html {
+  scroll-padding-top: calc(var(--nav-height) + 12px);
 }
 
 #root {
@@ -15,6 +19,34 @@
 
 .passage-main {
   flex: 1;
+}
+
+.passage-workflow .passage-main.workflow-main {
+  padding-top: calc(var(--nav-height) + 20px);
+  padding-bottom: 72px;
+  min-height: calc(100vh - var(--nav-height));
+}
+
+.passage-workflow .nav {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  grid-template-columns: unset;
+  min-height: auto;
+  padding: 12px 48px 14px;
+}
+
+.passage-workflow .nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+}
+
+.passage-workflow .workflow-phase-strip {
+  width: 100%;
 }
 
 /* ── Nav layout (prevent logo / links / CTA overlap) ── */
@@ -133,16 +165,22 @@
 
 .passage-shell .tabs {
   position: sticky;
-  top: var(--nav-height);
+  top: calc(var(--nav-height) + 4px);
   z-index: 40;
   background: var(--bg);
   margin: 0 -4px;
-  padding: 0 4px;
+  padding: 8px 4px 4px;
 }
 
 .passage-shell .tab-panel {
-  padding-top: 28px;
+  padding-top: 20px;
+  padding-bottom: 40px;
   min-height: 240px;
+}
+
+.passage-workflow .workflow-card,
+.passage-workflow .workspace {
+  scroll-margin-top: calc(var(--nav-height) + 16px);
 }
 
 .passage-shell .tab-panel.show {
@@ -629,7 +667,8 @@
 .workflow-main {
   max-width: 960px;
   margin: 0 auto;
-  padding: 24px 20px 48px;
+  padding-left: 20px;
+  padding-right: 20px;
 }
 
 .workflow-inner {
@@ -779,6 +818,61 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 13px;
   line-height: 1.7;
+}
+
+.manual-redact-toolbar {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border, #3d3428);
+  border-radius: 8px;
+  background: var(--surface2, #1a1612);
+}
+
+.manual-redact-label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 10px;
+  color: var(--cream-dim, #c4b8a8);
+}
+
+.manual-redact-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.manual-span-list {
+  margin-top: 16px;
+}
+
+.manual-span-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+
+.manual-span-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border, #3d3428);
+  font-size: 13px;
+}
+
+.manual-span-type {
+  font-weight: 600;
+  min-width: 72px;
+}
+
+.manual-span-value {
+  flex: 1;
+  font-family: ui-monospace, monospace;
+  opacity: 0.85;
+}
+
+.edit-redact-textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .tts-fallback-note {

@@ -1,5 +1,6 @@
 /**
- * Browser → Upstash REST directly. Backend mints credentials; it never sees tokenMap values.
+ * Browser → Upstash REST directly. Backend mints scoped credentials only.
+ * Session marker is PII-free — raw token values stay in browser memory.
  */
 export interface RedactionSessionCredentials {
   sessionId: string;
@@ -19,15 +20,10 @@ export async function mintRedactionSession(sessionId?: string): Promise<Redactio
   return res.json();
 }
 
-export async function writeTokenMap(
-  creds: RedactionSessionCredentials,
-  tokenMap: Record<string, string>,
-): Promise<void> {
-  const entries = Object.entries(tokenMap).flat();
-  if (entries.length === 0) return;
-
+/** Register an active session in Upstash — no raw PII values written. */
+export async function registerRedactionSession(creds: RedactionSessionCredentials): Promise<void> {
   const pipeline = [
-    ["HSET", creds.redisKey, ...entries],
+    ["HSET", creds.redisKey, "__passage__", "tokenized-browser-only"],
     ["EXPIRE", creds.redisKey, creds.ttlSeconds],
   ];
 
@@ -42,23 +38,6 @@ export async function writeTokenMap(
 
   if (!res.ok) {
     const detail = await res.text();
-    throw new Error(`Redis write failed (${res.status}): ${detail}`);
+    throw new Error(`Redis session register failed (${res.status}): ${detail}`);
   }
-}
-
-export async function readTokenMap(creds: RedactionSessionCredentials): Promise<Record<string, string>> {
-  const res = await fetch(`${creds.restUrl}/hgetall/${encodeURIComponent(creds.redisKey)}`, {
-    headers: { Authorization: `Bearer ${creds.restToken}` },
-  });
-  if (!res.ok) throw new Error(`Redis read failed (${res.status})`);
-  const data = (await res.json()) as { result?: Record<string, string> | string[] };
-  const raw = data.result;
-  if (!raw) return {};
-  if (!Array.isArray(raw)) return raw;
-
-  const map: Record<string, string> = {};
-  for (let i = 0; i < raw.length; i += 2) {
-    map[raw[i]] = raw[i + 1];
-  }
-  return map;
 }

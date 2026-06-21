@@ -5,13 +5,13 @@ import { getUpstashRestConfig, SESSION_TTL_SECONDS, sessionRedisKey } from "../l
 
 export function postRedactionSessionToken(req: Request, res: Response): void {
   try {
-    const sessionId = typeof req.body?.session_id === "string" && req.body.session_id.trim()
-      ? req.body.session_id.trim()
-      : randomUUID();
+    const sessionId =
+      typeof req.body?.session_id === "string" && req.body.session_id.trim()
+        ? req.body.session_id.trim()
+        : randomUUID();
 
     const { url, token } = getUpstashRestConfig();
 
-    // Backend mints permission only — tokenMap values never cross this boundary.
     res.json({
       sessionId,
       restUrl: url,

@@ -12,14 +12,15 @@ export async function verifyRedis(): Promise<void> {
     if (pong !== "PONG") {
       throw new Error("Upstash REST ping failed");
     }
-    console.log("Upstash reachable (optional — token maps stay in browser memory only)");
+    console.log("Redis connected via Upstash REST (PING ok)");
     return;
   }
 
   const url = process.env.REDIS_URL;
   if (!url) {
-    console.log("Redis not configured — token maps stay in browser memory only (no server persistence)");
-    return;
+    throw new Error(
+      "Set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN (recommended) or REDIS_URL in server/.env",
+    );
   }
 
   const client = createClient({
@@ -31,7 +32,7 @@ export async function verifyRedis(): Promise<void> {
   try {
     await client.connect();
     await client.ping();
-    console.log("Redis TCP reachable (optional legacy)");
+    console.log("Redis connected via TCP (PING ok)");
   } finally {
     await client.quit().catch(() => undefined);
   }

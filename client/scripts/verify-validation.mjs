@@ -2,7 +2,7 @@
  * Unit tests for validateTranslationTokens + noRawPiiLeak.
  * Run: npm run verify:validation --prefix client
  */
-import { validateTranslationTokens, noRawPiiLeak } from "../src/lib/validate.ts";
+import { validateTranslationTokens, validateVoiceAnswerTokens, noRawPiiLeak } from "../src/lib/validate.ts";
 
 const TOKEN_A = "\u27E6PII:NAME:1\u27E7";
 const TOKEN_B = "\u27E6PII:DOB:1\u27E7";
@@ -31,5 +31,11 @@ assert(!unexpected.ok && unexpected.unexpected?.includes(TOKEN_FAKE), "unexpecte
 
 assert(noRawPiiLeak(tokenMap, "hello").ok, "no leak clean");
 assert(!noRawPiiLeak(tokenMap, "Maria Gonzalez").ok, "raw name leak detected");
+
+const voiceOk = validateVoiceAnswerTokens(tokenMap, `Solo menciona ${TOKEN_A} en la respuesta.`);
+assert(voiceOk.ok, "voice answer passes without all doc tokens");
+
+const voiceMissingOk = validateVoiceAnswerTokens(tokenMap, `Respuesta sin tokens.`);
+assert(voiceMissingOk.ok, "voice answer with zero tokens passes");
 
 console.log(process.exitCode ? "\nVERIFY VALIDATION FAILED" : "\nVERIFY VALIDATION PASSED");

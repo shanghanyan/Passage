@@ -1,16 +1,18 @@
 import { useCallback, useState } from "react";
 import { SYNTHETIC_DOCS } from "../data/synthetic-docs";
 import { detectPiiWithStatus } from "../lib/detect";
+import { mergeSpans } from "../lib/merge-spans";
 import { hasUndetectedAddressLeak } from "../lib/leakage";
 import { languageNameFromCode } from "../lib/languages";
 import { scanForLeakage } from "../lib/patterns";
 import { redact } from "../lib/redact";
+import { mintRedactionSession, registerRedactionSession } from "../lib/redis";
 import { computeRecall, reportRedactionScore } from "../lib/score-redaction";
 import { Sentry } from "../lib/sentry";
 import type { DetectedSpan, RedactionResult, TokenMeta, TranslateResponse, ValidationFailureDetails } from "../lib/types";
 import { validateTranslationOutput } from "../lib/validate";
 
-export type AppPhase = "input" | "preview" | "translating" | "done" | "blocked";
+export type AppPhase = "input" | "edit" | "preview" | "translating" | "done" | "blocked";
 export type AnalysisTab = "privacy" | "translation" | "voice";
 
 export function usePassageFlow() {
@@ -33,6 +35,7 @@ export function usePassageFlow() {
   const [toast, setToast] = useState<string | null>(null);
   const [detectionWarning, setDetectionWarning] = useState<string | null>(null);
   const [nerNote, setNerNote] = useState<string | null>(null);
+  const [manualSpans, setManualSpans] = useState<DetectedSpan[]>([]);
 
   const selectedDoc = SYNTHETIC_DOCS.find((d) => d.id === selectedDocId);
   const targetLanguage = languageNameFromCode(langCode);
@@ -57,6 +60,7 @@ export function usePassageFlow() {
     setDetectedSpans([]);
     setDetectionWarning(null);
     setNerNote(null);
+    setManualSpans([]);
     setSessionId("");
     resetOutput();
     setLastRecall(null);
@@ -89,12 +93,33 @@ export function usePassageFlow() {
       setPhase("input");
       setDetectionWarning(null);
       setNerNote(null);
+      setManualSpans([]);
       resetOutput();
       setLastRecall(null);
       setError(null);
     },
     [resetOutput],
   );
+
+  const enterEditMode = useCallback(() => {
+    resetOutput();
+    setRedaction(null);
+    setDetectionWarning(null);
+    setPhase("edit");
+    setActiveTab("privacy");
+  }, [resetOutput]);
+
+  const addManualSpan = useCallback((span: DetectedSpan) => {
+    setManualSpans((prev) => {
+      const duplicate = prev.some((s) => s.start === span.start && s.end === span.end && s.type === span.type);
+      if (duplicate) return prev;
+      return [...prev, span];
+    });
+  }, []);
+
+  const removeManualSpan = useCallback((index: number) => {
+    setManualSpans((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   const runDetection = useCallback(async () => {
     if (!rawText.trim()) return;
@@ -105,7 +130,8 @@ export function usePassageFlow() {
     setNerNote(null);
 
     try {
-      const { spans, nerError } = await detectPiiWithStatus(rawText);
+      const { spans: autoSpans, nerError } = await detectPiiWithStatus(rawText);
+      const spans = mergeSpans([...autoSpans, ...manualSpans]);
       setDetectedSpans(spans);
       if (nerError) setNerNote(nerError);
 
@@ -140,7 +166,7 @@ export function usePassageFlow() {
     } finally {
       setDetecting(false);
     }
-  }, [rawText, selectedDoc, resetOutput]);
+  }, [rawText, selectedDoc, resetOutput, manualSpans]);
 
   const sendForTranslation = useCallback(async () => {
     if (!redaction || phase !== "preview") return;
@@ -168,6 +194,9 @@ export function usePassageFlow() {
     setActiveTab("translation");
 
     try {
+      const creds = await mintRedactionSession(sessionId);
+      await registerRedactionSession(creds);
+
       const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -237,6 +266,10 @@ export function usePassageFlow() {
     toast,
     detectionWarning,
     nerNote,
+    manualSpans,
+    addManualSpan,
+    removeManualSpan,
+    enterEditMode,
     startOver,
     loadSample,
     runDetection,

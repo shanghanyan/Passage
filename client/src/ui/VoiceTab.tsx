@@ -3,7 +3,7 @@ import { formatError } from "../lib/errors";
 import { sttLanguageFromCode } from "../lib/languages";
 import { prepareVoiceQuestion } from "../lib/prepare-voice-question";
 import { askVoiceQuestion, startLiveTranscription } from "../lib/voice";
-import { validateTranslationOutput } from "../lib/validate";
+import { validateVoiceAnswer } from "../lib/validate";
 import { Sentry } from "../lib/sentry";
 import type { PassageFlow } from "../hooks/usePassageFlow";
 import { ExplanationTts } from "./ExplanationTts";
@@ -126,20 +126,28 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
         targetLanguage: flow.targetLanguage,
       });
 
-      const validation = validateTranslationOutput(
+      const validation = validateVoiceAnswer(
         result.answer_text,
         { ...flow.redaction.tokenMap, ...newTokens },
         flow.sessionId,
       );
       if (!validation.ok) {
-        setVoiceError(validation.fallback);
+        const detail =
+          validation.tokenCheck.reason ??
+          validation.leakCheck.reason ??
+          validation.fallback;
+        setVoiceError(detail);
         return;
       }
 
       setAnswer(validation.text);
       setTtsText(result.tts_text);
       setAutoPlayAnswer(true);
-      setVoiceMeta(`STT: ${sttLanguage} · tokenized answer only`);
+      const meta: string[] = [`STT: ${sttLanguage}`];
+      if (result.from_cache) meta.push("LangCache hit");
+      if (result.memory_turns) meta.push(`${result.memory_turns} prior turn(s)`);
+      if (result.agent_memory) meta.push("Agent Memory on");
+      setVoiceMeta(meta.join(" · "));
     } catch (err) {
       Sentry.captureException(err instanceof Error ? err : new Error(formatError(err)));
       setVoiceError(formatError(err));

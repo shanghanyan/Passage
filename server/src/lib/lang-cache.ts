@@ -1,8 +1,6 @@
 /**
  * Redis LangCache — semantic cache for voice FAQ (PII-free prompts/responses only).
- * REST API: https://redis.io/docs/latest/develop/ai/langcache/api-examples/
  */
-
 import { createHash } from "node:crypto";
 import { assertMemoryTextSafe } from "./agent-memory.js";
 
@@ -32,7 +30,6 @@ function authHeaders(apiKey: string): Record<string, string> {
   };
 }
 
-/** Scope cache to redacted doc fingerprint + question — never raw document text. */
 export function buildVoiceCachePrompt(redactedText: string, question: string): string {
   const docFingerprint = createHash("sha256").update(redactedText).digest("hex").slice(0, 16);
   return `[passage:${docFingerprint}]\nQ: ${question.trim()}`;

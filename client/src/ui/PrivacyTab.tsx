@@ -86,7 +86,7 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
 
       {canSend && (
         <div className="tool-actions" style={{ marginTop: 16 }}>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={flow.startOver}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={flow.enterEditMode}>
             <i className="ti ti-edit" /> Edit &amp; re-redact
           </button>
           <button
@@ -112,7 +112,7 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
       <p className="notice" style={{ marginTop: 12 }}>
         <i className="ti ti-shield" />{" "}
         {canSend
-          ? "No network requests until you press send. Token maps stay in browser memory only — never saved to a server."
+          ? "No network requests until you press send. Upstash gets a PII-free session marker only — raw values stay in browser memory."
           : "Fix detection gaps before sending. Raw values never leave your browser."}
       </p>
 

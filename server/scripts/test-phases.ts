@@ -4,6 +4,7 @@
  */
 import "dotenv/config";
 import { validateTokenPreservation, translateRedactedText } from "../src/lib/claude.js";
+import { getUpstashRestConfig, sessionRedisKey } from "../src/lib/redis.js";
 import { initSentry, captureValidationMismatch } from "../src/lib/sentry.js";
 
 const TOKEN = /⟦PII:[A-Z_]+:\d+⟧/g;
@@ -24,6 +25,44 @@ function redact(text: string, spans: Array<{ type: string; start: number; end: n
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message);
+}
+
+async function testRedactionSessionToken() {
+  const res = await fetch("http://localhost:3001/api/redaction-session-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: "test-session-" + Date.now() }),
+  });
+  assert(res.ok, "redaction-session-token should succeed");
+  const body = await res.json();
+  assert(typeof body.restUrl === "string", "restUrl present");
+  assert(typeof body.restToken === "string", "restToken present");
+  assert(body.redisKey.startsWith("session:"), "redisKey scoped");
+  assert(body.ttlSeconds === 900, "TTL 900");
+  console.log("✓ Phase 2: redaction-session-token mints scoped credentials");
+  return body as { restUrl: string; restToken: string; redisKey: string; ttlSeconds: number };
+}
+
+async function testRedisSessionMarker(creds: {
+  restUrl: string;
+  restToken: string;
+  redisKey: string;
+  ttlSeconds: number;
+}) {
+  const pipeline = [
+    ["HSET", creds.redisKey, "__passage__", "tokenized-browser-only"],
+    ["EXPIRE", creds.redisKey, creds.ttlSeconds],
+  ];
+  const writeRes = await fetch(`${creds.restUrl}/pipeline`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${creds.restToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(pipeline),
+  });
+  assert(writeRes.ok, `Redis write failed: ${await writeRes.text()}`);
+  console.log("✓ Phase 2: PII-free session marker written via Upstash REST");
 }
 
 async function testTranslateRoundTrip() {
@@ -91,13 +130,17 @@ function testRegexPatterns() {
 async function main() {
   testRegexPatterns();
 
+  getUpstashRestConfig();
+  sessionRedisKey("smoke");
+
+  const creds = await testRedactionSessionToken();
+  await testRedisSessionMarker(creds);
   await testTranslateRoundTrip();
   await testTranslateSecondLanguage();
   await testValidationFailure();
   await testPlantedFailureEndpoint();
 
   console.log("\nAll phase 0–4 automated checks passed.");
-  console.log("(Token maps stay in browser memory only — no Upstash persistence test.)");
 }
 
 main().catch((err) => {

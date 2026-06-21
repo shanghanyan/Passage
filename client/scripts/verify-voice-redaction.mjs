@@ -62,8 +62,10 @@ async function runRedactionCase({ title, rawTranscript, rawValuesToBan, expectLe
     }
   }
 
-  const redisWrite = fetchLog.find((e) => String(e.url).includes("upstash") || String(e.url).includes("redaction-session"));
-  assert(!redisWrite, "no Redis / Upstash writes during voice redaction");
+  const redisWrite = fetchLog.find(
+    (e) => String(e.url).includes("upstash") || String(e.url).includes("mock-upstash"),
+  );
+  assert(!redisWrite, "voice redaction should not write to Upstash (translate registers session separately)");
 
   return { redacted, postBodyJson, newTokens };
 }

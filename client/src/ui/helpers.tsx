@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
-import type { TokenMeta } from "../lib/types";
+import type { PiiType, TokenMeta } from "../lib/types";
+
+export const PII_TYPES: PiiType[] = ["NAME", "A_NUMBER", "SSN", "DOB", "PASSPORT", "ADDRESS"];
 
 export const TYPE_COLORS: Record<string, string> = {
   A_NUMBER: "#dc2626",
