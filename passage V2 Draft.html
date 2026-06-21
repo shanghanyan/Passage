@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Passage — Document Translation for Immigrants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+/* ── BASE ── */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+:root{
+  --bg:#1A1A1A;
+  --surface:#232323;
+  --surface2:#2B2B2B;
+  --surface3:#333;
+  --cream:#E5DFD0;
+  --cream-dim:#9B9489;
+  --cream-faint:#5A5650;
+  --red:#D42929;
+  --red-dark:#B82020;
+  --red-glow:rgba(212,41,41,0.18);
+  --border:#383838;
+  --border-dim:#2A2A2A;
+  --white:#F0EBE0;
+}
+body{background:var(--bg);color:var(--cream);font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;overflow-x:hidden;min-height:100vh}
+a{color:inherit;text-decoration:none}
+
+/* ── SCROLL ANIMATIONS ── */
+.reveal{opacity:0;transform:translateY(32px);transition:opacity .75s cubic-bezier(.16,1,.3,1),transform .75s cubic-bezier(.16,1,.3,1)}
+.reveal-left{opacity:0;transform:translateX(-40px);transition:opacity .75s cubic-bezier(.16,1,.3,1),transform .75s cubic-bezier(.16,1,.3,1)}
+.reveal-right{opacity:0;transform:translateX(40px);transition:opacity .75s cubic-bezier(.16,1,.3,1),transform .75s cubic-bezier(.16,1,.3,1)}
+.reveal.in,.reveal-left.in,.reveal-right.in{opacity:1;transform:none}
+
+/* ── NAVIGATION ── */
+.nav{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  padding:18px 48px;
+  display:flex;align-items:center;justify-content:space-between;
+  transition:background .3s,border-bottom .3s,padding .3s;
+}
+.nav.stuck{
+  background:rgba(26,26,26,0.96);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  padding:12px 48px;
+}
+.nav-logo{display:flex;align-items:center;gap:9px;cursor:pointer}
+.nav-cross{color:var(--red);font-size:22px;font-weight:900;line-height:1}
+.nav-wordmark{font-family:'Bebas Neue',sans-serif;font-size:30px;letter-spacing:.12em;color:var(--white)}
+.nav-links{display:flex;align-items:center;gap:36px}
+.nav-link{font-size:11px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-dim);cursor:pointer;transition:color .2s}
+.nav-link:hover{color:var(--cream)}
+.nav-cta{
+  background:var(--red);color:#fff;
+  padding:10px 22px;border:none;border-radius:3px;
+  font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  cursor:pointer;transition:background .15s,transform .1s;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.nav-cta:hover{background:var(--red-dark);transform:translateY(-1px)}
+
+/* ── HERO ── */
+.hero{
+  min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+  position:relative;overflow:hidden;padding:0 48px;
+}
+.hero-bg-grid{
+  position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(229,223,208,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(229,223,208,.025) 1px,transparent 1px);
+  background-size:64px 64px;
+}
+.hero-compass{
+  position:absolute;right:6%;top:50%;transform:translateY(-50%);
+  width:min(520px,50vw);height:min(520px,50vw);
+  opacity:.07;pointer-events:none;
+  animation:compassSpin 60s linear infinite;
+}
+.hero-vignette{position:absolute;inset:0;background:radial-gradient(ellipse 70% 80% at 30% 50%,transparent 40%,rgba(26,26,26,.8) 100%)}
+
+.hero-content{position:relative;z-index:2;max-width:820px}
+.hero-eyebrow{
+  font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--red);
+  display:flex;align-items:center;gap:12px;margin-bottom:22px;
+  opacity:0;animation:fadeIn .8s ease .15s forwards;
+}
+.hero-eyebrow-line{width:32px;height:1px;background:var(--red)}
+.hero-title{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(76px,10.5vw,148px);
+  line-height:.88;letter-spacing:.02em;color:var(--white);
+  margin-bottom:28px;
+}
+.hero-title .tline{display:block;overflow:hidden}
+.hero-title .tline span{
+  display:block;
+  opacity:0;transform:translateY(102%);
+  animation:lineUp .9s cubic-bezier(.16,1,.3,1) forwards;
+}
+.hero-title .tline:nth-child(1) span{animation-delay:.25s}
+.hero-title .tline:nth-child(2) span{animation-delay:.4s}
+.hero-title .tline:nth-child(3) span{animation-delay:.55s}
+.hero-title .dot{color:var(--red)}
+.hero-body{
+  font-size:16px;line-height:1.75;color:var(--cream-dim);
+  max-width:500px;margin-bottom:40px;
+  opacity:0;animation:fadeIn .8s ease .85s forwards;
+}
+.hero-actions{
+  display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+  opacity:0;animation:fadeIn .8s ease 1.05s forwards;
+}
+.btn-primary{
+  background:var(--red);color:#fff;
+  padding:15px 36px;border:none;border-radius:3px;
+  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  cursor:pointer;transition:background .15s,transform .12s;
+  display:inline-flex;align-items:center;gap:8px;
+}
+.btn-primary:hover{background:var(--red-dark);transform:translateY(-2px)}
+.btn-outline{
+  background:transparent;color:var(--cream-dim);
+  padding:15px 28px;border:1px solid var(--border);border-radius:3px;
+  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  cursor:pointer;transition:all .15s;
+}
+.btn-outline:hover{border-color:var(--cream-dim);color:var(--cream)}
+
+.hero-stats{
+  position:absolute;bottom:44px;left:48px;
+  display:flex;gap:52px;z-index:2;
+  opacity:0;animation:fadeIn .8s ease 1.3s forwards;
+}
+.stat-num{font-family:'Bebas Neue',sans-serif;font-size:40px;color:var(--white);line-height:1}
+.stat-num em{color:var(--red);font-style:normal}
+.stat-label{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--cream-faint);margin-top:4px}
+
+.scroll-cue{
+  position:absolute;bottom:44px;right:48px;z-index:2;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  opacity:0;animation:fadeIn .8s ease 1.6s forwards;
+}
+.scroll-cue-text{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--cream-faint);writing-mode:vertical-rl}
+.scroll-cue-bar{width:1px;height:64px;background:linear-gradient(to bottom,var(--red),transparent);animation:pulse 2s ease infinite}
+
+/* ── MARQUEE ── */
+.marquee-wrap{
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  padding:14px 0;overflow:hidden;position:relative;
+  background:var(--surface);
+}
+.marquee-track{
+  display:flex;gap:0;width:max-content;
+  animation:marqueeScroll 24s linear infinite;
+}
+.marquee-item{
+  font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--cream-faint);padding:0 40px;white-space:nowrap;
+  display:flex;align-items:center;gap:40px;
+}
+.marquee-item::after{content:'✛';color:var(--red);font-size:9px}
+
+/* ── ABOUT ── */
+.about{padding:108px 48px;max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:88px;align-items:center}
+.section-eyebrow{
+  font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--red);
+  display:flex;align-items:center;gap:10px;margin-bottom:18px;
+}
+.section-eyebrow::before{content:'';width:20px;height:1px;background:var(--red)}
+.section-heading{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(42px,5vw,68px);line-height:.95;color:var(--white);margin-bottom:24px;
+}
+.section-body{font-size:15px;line-height:1.8;color:var(--cream-dim);margin-bottom:14px}
+
+.stat-mosaic{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.stat-tile{
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px;
+  transition:border-color .2s;
+}
+.stat-tile:hover{border-color:var(--cream-faint)}
+.stat-tile.wide{grid-column:span 2}
+.tile-num{font-family:'Bebas Neue',sans-serif;font-size:52px;color:var(--red);line-height:1}
+.tile-sub{font-family:'Bebas Neue',sans-serif;font-size:52px;color:var(--white);line-height:1}
+.tile-label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-faint);margin-top:6px}
+
+.doc-illustration{
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:24px;grid-column:span 2;
+  display:flex;align-items:center;gap:20px;
+}
+.doc-illus-icon{
+  width:48px;height:48px;background:var(--red-glow);border-radius:6px;
+  display:flex;align-items:center;justify-content:center;color:var(--red);font-size:22px;flex-shrink:0;
+}
+.doc-illus-text{font-size:13px;color:var(--cream-dim);line-height:1.6}
+.doc-illus-text strong{color:var(--cream);display:block;margin-bottom:3px;font-size:14px}
+
+/* ── FEATURES ── */
+.features-section{padding:80px 48px 108px;border-top:1px solid var(--border)}
+.features-head{text-align:center;margin-bottom:64px}
+.features-head .section-eyebrow{justify-content:center}
+.features-head .section-eyebrow::before{display:none}
+.features-grid{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:18px;
+  max-width:1100px;margin:0 auto;
+}
+.feature-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:36px;position:relative;overflow:hidden;
+  transition:border-color .2s,transform .2s;
+}
+.feature-card:hover{border-color:var(--red);transform:translateY(-3px)}
+.feature-card::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--red);transform:scaleX(0);transform-origin:left;
+  transition:transform .35s cubic-bezier(.16,1,.3,1);
+}
+.feature-card:hover::after{transform:scaleX(1)}
+.feature-n{
+  font-family:'Bebas Neue',sans-serif;font-size:80px;
+  color:var(--border-dim);line-height:1;
+  position:absolute;top:16px;right:24px;pointer-events:none;
+  transition:color .2s;
+}
+.feature-card:hover .feature-n{color:var(--surface3)}
+.feature-icon{
+  width:46px;height:46px;background:var(--red-glow);border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--red);font-size:20px;margin-bottom:20px;
+}
+.feature-name{font-size:17px;font-weight:700;color:var(--white);margin-bottom:10px;letter-spacing:.02em}
+.feature-desc{font-size:14px;line-height:1.75;color:var(--cream-dim)}
+.feature-tag{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--red);margin-top:16px;
+}
+
+/* ── HOW IT WORKS ── */
+.how-section{
+  background:var(--surface);
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  padding:100px 48px;
+}
+.how-inner{max-width:1100px;margin:0 auto}
+.steps-row{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:64px;position:relative}
+.steps-row::before{
+  content:'';position:absolute;top:28px;
+  left:calc(16.67% + 16px);right:calc(16.67% + 16px);
+  height:1px;background:var(--border);
+}
+.step{padding:0 28px;text-align:center}
+.step:first-child{padding-left:0}
+.step:last-child{padding-right:0}
+.step-circle{
+  width:56px;height:56px;border-radius:50%;
+  border:1px solid var(--red);background:var(--surface);
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 24px;color:var(--red);font-size:20px;
+  position:relative;z-index:1;
+  transition:background .2s;
+}
+.step:hover .step-circle{background:var(--red-glow)}
+.step-title{font-size:15px;font-weight:700;color:var(--white);margin-bottom:10px;letter-spacing:.03em}
+.step-desc{font-size:13px;line-height:1.75;color:var(--cream-dim)}
+
+/* ── LANGUAGES BANNER ── */
+.langs-section{padding:80px 48px;border-bottom:1px solid var(--border)}
+.langs-inner{max-width:1100px;margin:0 auto}
+.langs-grid{
+  display:flex;flex-wrap:wrap;gap:10px;margin-top:40px;
+}
+.lang-pill{
+  display:flex;align-items:center;gap:8px;
+  background:var(--surface);border:1px solid var(--border);border-radius:40px;
+  padding:10px 18px;font-size:13px;color:var(--cream-dim);
+  transition:border-color .2s,color .2s;cursor:default;
+}
+.lang-pill:hover{border-color:var(--red);color:var(--cream)}
+.lang-pill span{font-size:18px}
+
+/* ── TOOL SECTION ── */
+.tool-section{padding:100px 48px}
+.tool-inner{max-width:1100px;margin:0 auto}
+.tool-head{margin-bottom:40px}
+
+/* Upload zone */
+.upload-zone{
+  border:1.5px dashed var(--border);border-radius:6px;
+  padding:32px;text-align:center;cursor:pointer;
+  transition:border-color .2s,background .2s;
+  background:var(--surface);position:relative;
+  margin-bottom:18px;
+}
+.upload-zone:hover{border-color:var(--red)}
+.upload-zone.drag{border-color:var(--red);background:var(--surface2)}
+.upload-icon{font-size:32px;color:var(--cream-faint);margin-bottom:12px}
+.upload-zone h3{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--cream);margin-bottom:6px}
+.upload-zone p{font-size:12px;color:var(--cream-dim)}
+.upload-zone textarea{
+  width:100%;background:transparent;border:none;color:var(--cream);
+  font-size:13px;resize:vertical;min-height:80px;margin-top:14px;
+  outline:none;font-family:inherit;line-height:1.6;
+}
+.upload-zone textarea::placeholder{color:var(--cream-faint)}
+
+/* controls row */
+.tool-controls{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.lang-label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream-dim)}
+select{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--cream);padding:9px 14px;border-radius:4px;
+  font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;min-width:170px;
+}
+select:focus{outline:none;border-color:var(--red)}
+
+/* action buttons */
+.tool-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:32px}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:11px 22px;border:none;border-radius:4px;
+  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+  transition:background .15s,transform .1s;
+}
+.btn:active{transform:scale(.97)}
+.btn-red{background:var(--red);color:#fff}
+.btn-red:hover{background:var(--red-dark)}
+.btn-ghost{background:var(--surface2);color:var(--cream);border:1px solid var(--border)}
+.btn-ghost:hover{border-color:var(--cream-faint)}
+.btn-sm{padding:8px 16px;font-size:11px}
+
+/* WORKSPACE */
+.workspace{display:none;animation:fadeIn .4s ease}
+.workspace.show{display:block}
+
+.tabs{display:flex;border-bottom:1px solid var(--border);overflow-x:auto}
+.tab{
+  padding:12px 22px;font-size:11px;font-weight:700;
+  letter-spacing:.12em;text-transform:uppercase;
+  cursor:pointer;color:var(--cream-faint);
+  border-bottom:2px solid transparent;
+  transition:color .15s,border-color .15s;white-space:nowrap;
+}
+.tab:hover{color:var(--cream)}
+.tab.active{color:var(--red);border-bottom-color:var(--red)}
+
+.tab-panel{display:none;padding-top:24px}
+.tab-panel.show{display:block}
+
+/* TRANSLATION SPLIT */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.doc-pane{background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.pane-header{
+  padding:10px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.pane-tag{font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--cream-faint)}
+.pane-tag.red{background:var(--red);color:#fff;padding:3px 10px;border-radius:2px;font-size:9px}
+.pane-body{
+  padding:16px;font-size:13px;line-height:1.75;color:var(--cream);
+  min-height:200px;max-height:340px;overflow-y:auto;
+  white-space:pre-wrap;word-break:break-word;
+}
+.pane-body.loading{color:var(--cream-faint);font-style:italic}
+.bracket{color:var(--cream-faint);opacity:.35;font-size:11px;font-family:monospace;font-weight:900}
+
+.voice-bar{
+  padding:11px 16px;border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+}
+.voice-btn{
+  background:var(--red);border:none;color:#fff;
+  width:32px;height:32px;border-radius:50%;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:14px;
+  flex-shrink:0;transition:background .15s;
+}
+.voice-btn:hover{background:var(--red-dark)}
+.voice-btn.playing{background:#2a7a4f}
+.voice-label{font-size:11px;color:var(--cream-faint);letter-spacing:.08em;text-transform:uppercase}
+
+/* PRIVACY */
+.redact-controls{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.toggle-group{
+  display:flex;align-items:center;gap:8px;
+  background:var(--surface);border:1px solid var(--border);border-radius:4px;
+  padding:7px 12px;
+}
+.toggle-label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-dim)}
+input[type=checkbox]{accent-color:var(--red);width:15px;height:15px;cursor:pointer}
+.redacted{
+  background:var(--red);color:var(--red);border-radius:3px;
+  padding:0 4px;font-size:12px;letter-spacing:.05em;
+  user-select:none;cursor:help;transition:all .15s;
+}
+.redacted:hover{background:#8B0000;color:#ffaaaa}
+
+/* SUMMARY */
+.summary-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:6px;
+  padding:22px;margin-bottom:16px;
+}
+.summary-level{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.level-label{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--cream-faint)}
+.level-btn{
+  padding:6px 16px;border:1px solid var(--border);border-radius:2px;
+  font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  cursor:pointer;background:transparent;color:var(--cream-faint);transition:all .15s;
+}
+.level-btn.active{background:var(--red);border-color:var(--red);color:#fff}
+.summary-text{font-size:14px;line-height:1.85;color:var(--cream)}
+.summary-text.loading{color:var(--cream-faint);font-style:italic}
+
+/* DOC LIST */
+.doc-list{display:flex;flex-direction:column;gap:12px}
+.doc-item{
+  background:var(--surface);border:1px solid var(--border);border-radius:6px;
+  padding:16px;display:flex;align-items:flex-start;gap:14px;
+  transition:border-color .2s;
+}
+.doc-item:hover{border-color:var(--red)}
+.doc-num{
+  background:var(--red);color:#fff;font-size:11px;font-weight:900;
+  width:26px;height:26px;border-radius:2px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;
+}
+.doc-name{font-size:13px;font-weight:700;color:var(--cream);letter-spacing:.04em;margin-bottom:4px}
+.doc-desc{font-size:12px;color:var(--cream-dim);line-height:1.6}
+.doc-status{
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--cream-faint);background:var(--surface2);
+  padding:3px 10px;border-radius:2px;margin-top:8px;display:inline-block;
+}
+.disclaimer{
+  background:var(--surface2);border-left:3px solid var(--red);
+  padding:12px 16px;border-radius:0 4px 4px 0;margin-bottom:16px;
+}
+.disclaimer p{font-size:11px;color:var(--cream-dim);line-height:1.65}
+.disclaimer strong{
+  color:var(--cream);text-transform:uppercase;font-size:10px;
+  letter-spacing:.15em;display:block;margin-bottom:5px;
+}
+.notice{font-size:11px;color:var(--cream-faint);padding:8px 0;letter-spacing:.05em}
+.process-badge{
+  display:inline-block;background:var(--red);color:#fff;
+  font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  padding:4px 12px;border-radius:2px;margin-bottom:14px;
+}
+.spinner{
+  width:18px;height:18px;
+  border:2px solid var(--border);border-top-color:var(--red);
+  border-radius:50%;animation:spin .7s linear infinite;display:inline-block;
+}
+
+/* CORNER MARKS */
+.c-tl,.c-br{position:absolute;width:14px;height:14px;border-color:var(--cream-faint);border-style:solid;opacity:.4}
+.c-tl{top:10px;left:10px;border-width:1.5px 0 0 1.5px}
+.c-br{bottom:10px;right:10px;border-width:0 1.5px 1.5px 0}
+
+/* ── FOOTER ── */
+.footer{background:var(--surface);border-top:1px solid var(--border);padding:72px 48px 32px}
+.footer-inner{max-width:1100px;margin:0 auto}
+.footer-top{display:grid;grid-template-columns:2fr 1fr 1fr;gap:72px;padding-bottom:48px;margin-bottom:32px;border-bottom:1px solid var(--border)}
+.footer-brand{font-family:'Bebas Neue',sans-serif;font-size:38px;letter-spacing:.1em;color:var(--white);display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.footer-brand em{color:var(--red);font-style:normal}
+.footer-desc{font-size:13px;line-height:1.75;color:var(--cream-dim);margin-bottom:18px}
+.footer-legal{
+  font-size:11px;line-height:1.65;color:var(--cream-dim);
+  background:var(--surface2);border-left:2px solid var(--red);
+  padding:12px 14px;border-radius:0 3px 3px 0;
+}
+.footer-col-head{font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--cream);margin-bottom:18px}
+.footer-links{display:flex;flex-direction:column;gap:10px}
+.footer-link{font-size:12px;color:var(--cream-dim);cursor:pointer;transition:color .15s}
+.footer-link:hover{color:var(--cream)}
+.footer-bottom{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.footer-copy{font-size:11px;color:var(--cream-faint);letter-spacing:.06em}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ── KEYFRAMES ── */
+@keyframes fadeIn{to{opacity:1;transform:none}}
+@keyframes lineUp{to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes compassSpin{to{transform:translateY(-50%) rotate(360deg)}}
+@keyframes marqueeScroll{to{transform:translateX(-50%)}}
+@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  .nav-links{display:none}
+  .hero{padding:0 28px}
+  .hero-stats{left:28px;gap:28px}
+  .scroll-cue{display:none}
+  .about,.features-grid,.steps-row{grid-template-columns:1fr}
+  .steps-row::before{display:none}
+  .split{grid-template-columns:1fr}
+  .footer-top{grid-template-columns:1fr}
+  .nav{padding:16px 28px}
+  .nav.stuck{padding:10px 28px}
+  .tool-section,.features-section,.how-section,.langs-section{padding-left:28px;padding-right:28px}
+}
+@media(prefers-reduced-motion:reduce){
+  .reveal,.reveal-left,.reveal-right{opacity:1!important;transform:none!important;transition:none!important}
+  .hero-eyebrow,.hero-title .tline span,.hero-body,.hero-actions,.hero-stats,.scroll-cue{opacity:1!important;transform:none!important;animation:none!important}
+  .hero-compass,.marquee-track{animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<!-- ── NAVIGATION ── -->
+<nav class="nav" id="mainNav">
+  <div class="nav-logo" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+    <div class="nav-cross">✛</div>
+    <div class="nav-wordmark">PASSAGE</div>
+  </div>
+  <div class="nav-links">
+    <span class="nav-link" onclick="scrollTo('features')">Features</span>
+    <span class="nav-link" onclick="scrollTo('how')">How It Works</span>
+    <span class="nav-link" onclick="scrollTo('langs')">Languages</span>
+    <span class="nav-link" onclick="scrollTo('tool')">Tool</span>
+  </div>
+  <button class="nav-cta" onclick="scrollTo('tool')">
+    <i class="ti ti-wand"></i> Try Passage
+  </button>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero" id="home">
+  <div class="hero-bg-grid"></div>
+
+  <!-- Compass rose SVG -->
+  <svg class="hero-compass" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="100" cy="100" r="98" stroke="#E5DFD0" stroke-width=".6"/>
+    <circle cx="100" cy="100" r="78" stroke="#E5DFD0" stroke-width=".4"/>
+    <circle cx="100" cy="100" r="58" stroke="#E5DFD0" stroke-width=".4"/>
+    <circle cx="100" cy="100" r="38" stroke="#E5DFD0" stroke-width=".4"/>
+    <circle cx="100" cy="100" r="8" fill="#D42929"/>
+    <line x1="100" y1="2" x2="100" y2="198" stroke="#E5DFD0" stroke-width=".5"/>
+    <line x1="2" y1="100" x2="198" y2="100" stroke="#E5DFD0" stroke-width=".5"/>
+    <line x1="30" y1="30" x2="170" y2="170" stroke="#E5DFD0" stroke-width=".3"/>
+    <line x1="170" y1="30" x2="30" y2="170" stroke="#E5DFD0" stroke-width=".3"/>
+    <!-- N arrow (red) -->
+    <polygon points="100,4 94,28 106,28" fill="#D42929"/>
+    <!-- S arrow -->
+    <polygon points="100,196 94,172 106,172" fill="#E5DFD0" opacity=".3"/>
+    <!-- E arrow -->
+    <polygon points="196,100 172,94 172,106" fill="#E5DFD0" opacity=".3"/>
+    <!-- W arrow -->
+    <polygon points="4,100 28,94 28,106" fill="#E5DFD0" opacity=".3"/>
+    <text x="100" y="18" text-anchor="middle" fill="#D42929" font-size="8" font-family="sans-serif" font-weight="700">N</text>
+    <text x="100" y="192" text-anchor="middle" fill="#E5DFD0" font-size="6" font-family="sans-serif" opacity=".3">S</text>
+    <text x="185" y="103" text-anchor="middle" fill="#E5DFD0" font-size="6" font-family="sans-serif" opacity=".3">E</text>
+    <text x="14" y="103" text-anchor="middle" fill="#E5DFD0" font-size="6" font-family="sans-serif" opacity=".3">W</text>
+    <!-- tick marks -->
+    <line x1="100" y1="42" x2="100" y2="48" stroke="#E5DFD0" stroke-width=".8" opacity=".4"/>
+    <line x1="100" y1="152" x2="100" y2="158" stroke="#E5DFD0" stroke-width=".8" opacity=".4"/>
+    <line x1="42" y1="100" x2="48" y2="100" stroke="#E5DFD0" stroke-width=".8" opacity=".4"/>
+    <line x1="152" y1="100" x2="158" y2="100" stroke="#E5DFD0" stroke-width=".8" opacity=".4"/>
+  </svg>
+
+  <div class="hero-vignette"></div>
+
+  <div class="hero-content">
+    <div class="hero-eyebrow">
+      <div class="hero-eyebrow-line"></div>
+      AI-Powered Immigration Document Tool
+    </div>
+    <h1 class="hero-title">
+      <span class="tline"><span>UNDERSTAND<span class="dot">.</span></span></span>
+      <span class="tline"><span>NAVIGATE<span class="dot">.</span></span></span>
+      <span class="tline"><span>ARRIVE<span class="dot">.</span></span></span>
+    </h1>
+    <p class="hero-body">
+      Upload any immigration document — Passage translates it into your language, explains it in plain words, protects your privacy, and shows what you need next.
+    </p>
+    <div class="hero-actions">
+      <button class="btn-primary" onclick="scrollTo('tool')">
+        <i class="ti ti-upload"></i> Upload a Document
+      </button>
+      <button class="btn-outline" onclick="scrollTo('features')">
+        See What It Does
+      </button>
+    </div>
+  </div>
+
+  <div class="hero-stats">
+    <div>
+      <div class="stat-num">12<em>+</em></div>
+      <div class="stat-label">Languages</div>
+    </div>
+    <div>
+      <div class="stat-num">4</div>
+      <div class="stat-label">Tools Built In</div>
+    </div>
+    <div>
+      <div class="stat-num">0</div>
+      <div class="stat-label">Data Stored</div>
+    </div>
+  </div>
+
+  <div class="scroll-cue">
+    <div class="scroll-cue-text">Scroll</div>
+    <div class="scroll-cue-bar"></div>
+  </div>
+</section>
+
+<!-- ── MARQUEE ── -->
+<div class="marquee-wrap">
+  <div class="marquee-track" id="marqueeTrack">
+    <span class="marquee-item">Translation</span>
+    <span class="marquee-item">Privacy Shield</span>
+    <span class="marquee-item">Simple English</span>
+    <span class="marquee-item">Documents Needed</span>
+    <span class="marquee-item">Voice Playback</span>
+    <span class="marquee-item">12 Languages</span>
+    <span class="marquee-item">Zero Data Storage</span>
+    <span class="marquee-item">Translation</span>
+    <span class="marquee-item">Privacy Shield</span>
+    <span class="marquee-item">Simple English</span>
+    <span class="marquee-item">Documents Needed</span>
+    <span class="marquee-item">Voice Playback</span>
+    <span class="marquee-item">12 Languages</span>
+    <span class="marquee-item">Zero Data Storage</span>
+  </div>
+</div>
+
+<!-- ── ABOUT ── -->
+<section style="padding:100px 48px;border-bottom:1px solid var(--border)">
+  <div class="about" style="padding:0;border:none">
+    <div class="reveal-left">
+      <div class="section-eyebrow">What Is Passage</div>
+      <h2 class="section-heading">Your documents, finally understood.</h2>
+      <p class="section-body">
+        The immigration process means navigating dense legal forms, unfamiliar agencies, and critical deadlines — often in a language that isn't your first. Passage breaks that barrier.
+      </p>
+      <p class="section-body">
+        Paste or drop any immigration document and instantly get a side-by-side translation, a plain-English summary at your reading level, automatic privacy redaction, and a checklist of documents typically required for your process.
+      </p>
+      <p class="notice" style="margin-top:8px;display:flex;align-items:center;gap:6px">
+        <i class="ti ti-shield-check" style="color:var(--red)"></i>
+        Passage is a translation and comprehension aid. It does not give legal advice.
+      </p>
+    </div>
+
+    <div class="reveal-right">
+      <div class="stat-mosaic">
+        <div class="stat-tile wide">
+          <div style="display:flex;align-items:baseline;gap:12px">
+            <div class="tile-num">47M</div>
+          </div>
+          <div class="tile-label">Immigrants in the United States navigating complex paperwork</div>
+        </div>
+        <div class="stat-tile">
+          <div class="tile-sub">350<span style="color:var(--red)">+</span></div>
+          <div class="tile-label">Languages spoken across immigrant communities</div>
+        </div>
+        <div class="stat-tile">
+          <div class="tile-sub" style="color:var(--red)">100%</div>
+          <div class="tile-label">Private — nothing is stored or shared</div>
+        </div>
+
+        <!-- Illustration card -->
+        <div class="doc-illustration" style="background:var(--surface2)">
+          <div class="doc-illus-icon"><i class="ti ti-file-description"></i></div>
+          <div class="doc-illus-text">
+            <strong>Works with any document</strong>
+            USCIS notices, visa letters, court documents, employment letters, lease agreements, appointment confirmations, and more.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FEATURES ── -->
+<section class="features-section" id="features">
+  <div class="features-head reveal">
+    <div class="section-eyebrow">Built-In Features</div>
+    <h2 class="section-heading" style="font-family:'Bebas Neue',sans-serif;font-size:clamp(42px,5vw,68px);color:var(--white)">Four tools. One mission.</h2>
+  </div>
+
+  <div class="features-grid">
+    <div class="feature-card reveal" style="transition-delay:.05s">
+      <div class="feature-n">01</div>
+      <div class="feature-icon"><i class="ti ti-language"></i></div>
+      <div class="feature-name">Side-by-Side Translation</div>
+      <p class="feature-desc">Your document in English and your chosen language, displayed together for easy comparison. Both sides include read-aloud voice playback so you can listen, not just read.</p>
+      <div class="feature-tag"><i class="ti ti-player-play"></i> Voice included</div>
+    </div>
+
+    <div class="feature-card reveal" style="transition-delay:.12s">
+      <div class="feature-n">02</div>
+      <div class="feature-icon"><i class="ti ti-shield-lock"></i></div>
+      <div class="feature-name">Privacy Shield</div>
+      <p class="feature-desc">Automatically redacts sensitive personal information — names, dates, ID numbers, case numbers, and addresses — before you share a screenshot. Toggle each category on or off. Hover any block to peek.</p>
+      <div class="feature-tag"><i class="ti ti-eye-off"></i> Local only · No data leaves</div>
+    </div>
+
+    <div class="feature-card reveal" style="transition-delay:.19s">
+      <div class="feature-n">03</div>
+      <div class="feature-icon"><i class="ti ti-abc"></i></div>
+      <div class="feature-name">Simple English Summary</div>
+      <p class="feature-desc">Legal language re-explained at three reading levels: Basic (everyday words for early English learners), Intermediate (clear language with brief definitions), and Full Detail (thorough breakdown with headers).</p>
+      <div class="feature-tag"><i class="ti ti-arrow-up-right"></i> Three reading levels</div>
+    </div>
+
+    <div class="feature-card reveal" style="transition-delay:.26s">
+      <div class="feature-n">04</div>
+      <div class="feature-icon"><i class="ti ti-checklist"></i></div>
+      <div class="feature-name">Documents Needed</div>
+      <p class="feature-desc">Passage identifies the immigration process your document belongs to and generates a general list of documents that are typically associated with it — so you know what to prepare. Informational only, not legal advice.</p>
+      <div class="feature-tag"><i class="ti ti-info-circle"></i> Informational only</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ── -->
+<section class="how-section" id="how">
+  <div class="how-inner">
+    <div style="text-align:center" class="reveal">
+      <div class="section-eyebrow" style="justify-content:center">Getting Started</div>
+      <h2 class="section-heading" style="font-family:'Bebas Neue',sans-serif;font-size:clamp(42px,5vw,68px);color:var(--white)">Three steps to clarity.</h2>
+    </div>
+    <div class="steps-row">
+      <div class="step reveal" style="transition-delay:.0s">
+        <div class="step-circle"><i class="ti ti-upload"></i></div>
+        <div class="step-title">Paste or Upload</div>
+        <p class="step-desc">Drop a .txt file or paste your document text. Passage works with USCIS forms, visa letters, court notices, employment letters, leases, and more.</p>
+      </div>
+      <div class="step reveal" style="transition-delay:.15s">
+        <div class="step-circle"><i class="ti ti-language"></i></div>
+        <div class="step-title">Choose Your Language</div>
+        <p class="step-desc">Select from 12 languages. Passage translates, summarizes, and analyzes your document simultaneously — all within seconds.</p>
+      </div>
+      <div class="step reveal" style="transition-delay:.3s">
+        <div class="step-circle"><i class="ti ti-eye"></i></div>
+        <div class="step-title">Understand and Act</div>
+        <p class="step-desc">Browse the four tabs: read the translation aloud, protect your privacy, follow a plain-English summary, and check what documents may be needed.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── LANGUAGES ── -->
+<section class="langs-section" id="langs">
+  <div class="langs-inner">
+    <div class="reveal">
+      <div class="section-eyebrow">Supported Languages</div>
+      <h2 class="section-heading" style="font-family:'Bebas Neue',sans-serif;font-size:clamp(36px,4vw,56px);color:var(--white)">In your language.</h2>
+      <p class="section-body" style="max-width:520px;margin-top:12px">Passage supports 12 of the most spoken languages among immigrant communities in the United States.</p>
+    </div>
+    <div class="langs-grid reveal" style="transition-delay:.1s">
+      <div class="lang-pill"><span>🇲🇽</span> Spanish</div>
+      <div class="lang-pill"><span>🇨🇳</span> Mandarin</div>
+      <div class="lang-pill"><span>🇫🇷</span> French</div>
+      <div class="lang-pill"><span>🇸🇦</span> Arabic</div>
+      <div class="lang-pill"><span>🇧🇷</span> Portuguese</div>
+      <div class="lang-pill"><span>🇮🇳</span> Hindi</div>
+      <div class="lang-pill"><span>🇵🇭</span> Tagalog</div>
+      <div class="lang-pill"><span>🇻🇳</span> Vietnamese</div>
+      <div class="lang-pill"><span>🇰🇷</span> Korean</div>
+      <div class="lang-pill"><span>🇭🇹</span> Haitian Creole</div>
+      <div class="lang-pill"><span>🇪🇹</span> Amharic</div>
+      <div class="lang-pill"><span>🇸🇴</span> Somali</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── TOOL ── -->
+<section class="tool-section" id="tool">
+  <div class="tool-inner">
+
+    <div class="tool-head reveal">
+      <div class="section-eyebrow">The Tool</div>
+      <h2 class="section-heading" style="font-family:'Bebas Neue',sans-serif;font-size:clamp(42px,5vw,68px);color:var(--white)">Try Passage now.</h2>
+      <p style="font-size:14px;color:var(--cream-dim);margin-top:12px;max-width:540px;line-height:1.75">
+        Upload or paste any immigration document below. All processing happens in your browser — nothing is stored or sent anywhere.
+      </p>
+    </div>
+
+    <div class="tool-controls reveal" style="transition-delay:.08s">
+      <span class="lang-label">Translate to</span>
+      <select id="langSelect">
+        <option value="Spanish">🇲🇽 Spanish</option>
+        <option value="Mandarin Chinese">🇨🇳 Mandarin</option>
+        <option value="French">🇫🇷 French</option>
+        <option value="Arabic">🇸🇦 Arabic</option>
+        <option value="Portuguese">🇧🇷 Portuguese</option>
+        <option value="Hindi">🇮🇳 Hindi</option>
+        <option value="Tagalog">🇵🇭 Tagalog</option>
+        <option value="Vietnamese">🇻🇳 Vietnamese</option>
+        <option value="Korean">🇰🇷 Korean</option>
+        <option value="Haitian Creole">🇭🇹 Haitian Creole</option>
+        <option value="Amharic">🇪🇹 Amharic</option>
+        <option value="Somali">🇸🇴 Somali</option>
+      </select>
+    </div>
+
+    <div class="upload-zone reveal" id="uploadZone" style="transition-delay:.12s">
+      <div style="position:relative">
+        <div class="c-tl"></div>
+        <div class="c-br"></div>
+        <div class="upload-icon"><i class="ti ti-file-upload"></i></div>
+        <h3>Paste or drop your document</h3>
+        <p>Supports visa letters, court notices, USCIS forms, lease agreements, employment letters, and more</p>
+        <textarea id="docInput" placeholder="Paste the document text here, or drag &amp; drop a .txt file..." rows="5"></textarea>
+      </div>
+    </div>
+
+    <div class="tool-actions reveal" style="transition-delay:.16s">
+      <button class="btn btn-red" onclick="analyzeDoc()">
+        <i class="ti ti-wand"></i> Analyze Document
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="loadSample()">
+        <i class="ti ti-file-text"></i> Load Sample
+      </button>
+    </div>
+
+    <!-- ── WORKSPACE ── -->
+    <div class="workspace" id="workspace">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('translation',this)"><i class="ti ti-language"></i>&nbsp; Translation</div>
+        <div class="tab" onclick="switchTab('privacy',this)"><i class="ti ti-shield-lock"></i>&nbsp; Privacy</div>
+        <div class="tab" onclick="switchTab('simple',this)"><i class="ti ti-abc"></i>&nbsp; Simple English</div>
+        <div class="tab" onclick="switchTab('docs',this)"><i class="ti ti-checklist"></i>&nbsp; Documents Needed</div>
+      </div>
+
+      <!-- TRANSLATION TAB -->
+      <div class="tab-panel show" id="panel-translation">
+        <div class="split">
+          <div class="doc-pane">
+            <div class="pane-header">
+              <span class="pane-tag">Original Document</span>
+              <span class="bracket">[ EN ]</span>
+            </div>
+            <div class="pane-body" id="origText"></div>
+            <div class="voice-bar">
+              <button class="voice-btn" onclick="speak('orig')" id="voiceOrig" title="Read aloud">
+                <i class="ti ti-player-play"></i>
+              </button>
+              <span class="voice-label">Read aloud · English</span>
+            </div>
+          </div>
+          <div class="doc-pane">
+            <div class="pane-header">
+              <span class="pane-tag red" id="transLangTag">Translation</span>
+              <span class="bracket" id="transCode">[ — ]</span>
+            </div>
+            <div class="pane-body loading" id="transText">Translation will appear here...</div>
+            <div class="voice-bar">
+              <button class="voice-btn" onclick="speak('trans')" id="voiceTrans" title="Read aloud">
+                <i class="ti ti-player-play"></i>
+              </button>
+              <span class="voice-label" id="voiceTransLabel">Read aloud</span>
+            </div>
+          </div>
+        </div>
+        <p class="notice" style="margin-top:14px"><i class="ti ti-info-circle"></i>&nbsp; Translations are AI-generated. For legal proceedings, always use a certified human translator.</p>
+      </div>
+
+      <!-- PRIVACY TAB -->
+      <div class="tab-panel" id="panel-privacy">
+        <div class="redact-controls">
+          <span class="toggle-group">
+            <input type="checkbox" id="redactNames" checked onchange="applyRedaction()">
+            <span class="toggle-label">Names</span>
+          </span>
+          <span class="toggle-group">
+            <input type="checkbox" id="redactDates" checked onchange="applyRedaction()">
+            <span class="toggle-label">Dates</span>
+          </span>
+          <span class="toggle-group">
+            <input type="checkbox" id="redactNums" checked onchange="applyRedaction()">
+            <span class="toggle-label">ID &amp; Case Numbers</span>
+          </span>
+          <span class="toggle-group">
+            <input type="checkbox" id="redactAddr" checked onchange="applyRedaction()">
+            <span class="toggle-label">Addresses</span>
+          </span>
+        </div>
+        <div class="doc-pane">
+          <div class="pane-header">
+            <span class="pane-tag">Redacted View</span>
+            <span style="font-size:11px;color:var(--cream-faint)">Hover any block to reveal</span>
+          </div>
+          <div class="pane-body" id="redactedText" style="max-height:420px"></div>
+        </div>
+        <p class="notice" style="margin-top:14px"><i class="ti ti-shield"></i>&nbsp; Redacted text is displayed in your browser only. No data is stored. Use this view for screenshots.</p>
+      </div>
+
+      <!-- SIMPLE ENGLISH TAB -->
+      <div class="tab-panel" id="panel-simple">
+        <div class="summary-card">
+          <div class="summary-level">
+            <span class="level-label">Reading level</span>
+            <button class="level-btn active" onclick="setLevel('basic',this)">Basic</button>
+            <button class="level-btn" onclick="setLevel('intermediate',this)">Intermediate</button>
+            <button class="level-btn" onclick="setLevel('full',this)">Full Detail</button>
+          </div>
+          <div class="summary-text loading" id="simpleText">Summary will appear here...</div>
+        </div>
+        <p class="notice"><i class="ti ti-info-circle"></i>&nbsp; Simplified text is for comprehension only — it is not a legal substitute for the original document.</p>
+      </div>
+
+      <!-- DOCUMENTS NEEDED TAB -->
+      <div class="tab-panel" id="panel-docs">
+        <div class="disclaimer">
+          <strong>⚠ Informational Only — Not Legal Advice</strong>
+          <p>The list below is generated by AI to help you understand what documents are generally associated with this type of process. Requirements vary by country, regional office, and individual circumstances. Always verify with a qualified immigration attorney or the relevant authority.</p>
+        </div>
+        <div id="processLabel"></div>
+        <div class="doc-list" id="docList">
+          <div style="color:var(--cream-faint);font-size:13px;padding:16px 0">Identifying process and generating document list...</div>
+        </div>
+      </div>
+    </div><!-- /workspace -->
+
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div>
+        <div class="footer-brand"><em>✛</em> PASSAGE</div>
+        <p class="footer-desc">An AI-powered document translation and comprehension tool for immigrants navigating visa, residency, and application processes in the United States and beyond.</p>
+        <div class="footer-legal">
+          <strong>Legal Notice</strong>
+          Passage provides AI-generated translations and general information only. It is not a licensed immigration service and does not provide legal advice. Document requirements vary significantly by jurisdiction and individual circumstances. Always consult a qualified immigration attorney for legal guidance.
+        </div>
+      </div>
+      <div>
+        <div class="footer-col-head">Features</div>
+        <div class="footer-links">
+          <span class="footer-link" onclick="scrollTo('tool')">Translation</span>
+          <span class="footer-link" onclick="scrollTo('tool')">Privacy Shield</span>
+          <span class="footer-link" onclick="scrollTo('tool')">Simple English</span>
+          <span class="footer-link" onclick="scrollTo('tool')">Documents Needed</span>
+          <span class="footer-link" onclick="scrollTo('tool')">Voice Playback</span>
+        </div>
+      </div>
+      <div>
+        <div class="footer-col-head">Languages</div>
+        <div class="footer-links">
+          <span class="footer-link">Spanish</span>
+          <span class="footer-link">Mandarin</span>
+          <span class="footer-link">Arabic</span>
+          <span class="footer-link">French</span>
+          <span class="footer-link">Hindi + 7 more</span>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="footer-copy"><span style="color:var(--red)">✛</span> PASSAGE — Document Translation for Immigrants</div>
+      <div class="footer-copy">For informational use only. Not legal advice.</div>
+    </div>
+  </div>
+</footer>
+
+<script>
+// ── NAV SCROLL ──
+const nav = document.getElementById('mainNav');
+window.addEventListener('scroll',()=>{
+  nav.classList.toggle('stuck', window.scrollY > 60);
+},{ passive:true });
+
+// ── SCROLL TO ──
+function scrollTo(id){
+  document.getElementById(id)?.scrollIntoView({behavior:'smooth'});
+}
+
+// ── INTERSECTION OBSERVER ──
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+  });
+},{ threshold:.08, rootMargin:'0px 0px -60px 0px' });
+document.querySelectorAll('.reveal,.reveal-left,.reveal-right').forEach(el=>io.observe(el));
+
+// ── APP STATE ──
+const API_URL="https://api.anthropic.com/v1/messages";
+let originalText="", translatedText="", currentLevel="basic", levelCache={}, utterance=null;
+
+const LANG_CODES={
+  "Spanish":"ES","Mandarin Chinese":"ZH","French":"FR","Arabic":"AR","Portuguese":"PT",
+  "Hindi":"HI","Tagalog":"TL","Vietnamese":"VI","Korean":"KO","Haitian Creole":"HT",
+  "Amharic":"AM","Somali":"SO"
+};
+
+const SAMPLE=`U.S. DEPARTMENT OF HOMELAND SECURITY
+USCIS - U.S. Citizenship and Immigration Services
+
+NOTICE OF ACTION
+Receipt Number: MSC-24-123-456789
+Case Type: I-485 Application to Register Permanent Residence
+
+Applicant: GARCIA, MARIA ELENA
+Date of Birth: March 14, 1990
+Address: 4521 Oak Avenue, Apt 3B, Miami, FL 33101
+
+Dear Ms. Garcia,
+
+This notice confirms we have received your Form I-485, Application to Register Permanent Residence or Adjust Status. Your case has been assigned to the Miami Field Office.
+
+You must appear for biometrics collection at the following Application Support Center:
+USCIS Application Support Center
+8603 South Dixie Highway, Suite 100
+Miami, FL 33143
+Appointment Date: August 22, 2024 at 10:00 AM
+
+Please bring this notice and a valid government-issued photo identification. Failure to appear may result in denial of your application.
+
+If you have questions, contact the USCIS Contact Center at 1-800-375-5283 (TTY: 1-800-767-1833) or visit uscis.gov.
+
+John P. Watkins
+District Director, Miami`;
+
+function loadSample(){
+  document.getElementById("docInput").value=SAMPLE;
+}
+
+async function analyzeDoc(){
+  const text=document.getElementById("docInput").value.trim();
+  if(!text){alert("Please paste your document text first.");return;}
+  originalText=text; translatedText=""; levelCache={};
+
+  document.getElementById("origText").textContent=text;
+  document.getElementById("transText").textContent="Translating...";
+  document.getElementById("transText").className="pane-body loading";
+  document.getElementById("simpleText").textContent="Summarizing...";
+  document.getElementById("simpleText").className="summary-text loading";
+  document.getElementById("docList").innerHTML='<div style="color:var(--cream-faint);font-size:13px;padding:16px 0"><span class="spinner"></span>&nbsp; Analyzing...</div>';
+  document.getElementById("processLabel").innerHTML="";
+
+  const ws=document.getElementById("workspace");
+  ws.className="workspace show";
+
+  const lang=document.getElementById("langSelect").value;
+  const code=LANG_CODES[lang]||lang.substring(0,2).toUpperCase();
+  document.getElementById("transLangTag").textContent=lang;
+  document.getElementById("transCode").textContent=`[ ${code} ]`;
+  document.getElementById("voiceTransLabel").textContent=`Read aloud · ${lang}`;
+
+  applyRedaction();
+  runTranslation(lang);
+  runSimpleSummary("basic");
+  runDocList();
+
+  setTimeout(()=>ws.scrollIntoView({behavior:'smooth',block:'start'}),250);
+}
+
+async function callAPI(prompt,sys){
+  const r=await fetch(API_URL,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      model:"claude-sonnet-4-6",
+      max_tokens:1000,
+      system:sys||"You are a helpful assistant.",
+      messages:[{role:"user",content:prompt}]
+    })
+  });
+  const d=await r.json();
+  return d.content?.[0]?.text||"";
+}
+
+async function runTranslation(lang){
+  try{
+    const r=await callAPI(
+      `Translate the following document into ${lang}. Preserve the document's structure, layout markers, and formatting as much as possible. Only return the translated text, nothing else.\n\n${originalText}`,
+      "You are a professional document translator. Produce accurate, natural translations that preserve the tone and structure of official documents."
+    );
+    translatedText=r;
+    document.getElementById("transText").textContent=r;
+    document.getElementById("transText").className="pane-body";
+  }catch{
+    document.getElementById("transText").textContent="Translation failed. Please try again.";
+    document.getElementById("transText").className="pane-body";
+  }
+}
+
+async function runSimpleSummary(level){
+  const map={
+    basic:"Use very simple words and short sentences. Imagine explaining to someone who just started learning English. Avoid legal or technical words. Use bullet points for key actions.",
+    intermediate:"Use clear, plain language. Simple legal terms are okay if briefly explained. Use bullet points.",
+    full:"Provide a thorough plain-English explanation covering all key points, dates, requirements, and actions. Use clear headers and bullet points."
+  };
+  document.getElementById("simpleText").textContent="Generating summary...";
+  document.getElementById("simpleText").className="summary-text loading";
+  try{
+    const r=await callAPI(
+      `Explain the following document in plain English. ${map[level]}\n\nDocument:\n${originalText}`,
+      "You are an immigration document guide helping immigrants understand complex official documents. Never give legal advice. Only explain what the document says."
+    );
+    levelCache[level]=r;
+    document.getElementById("simpleText").innerHTML=r
+      .replace(/\n/g,"<br>")
+      .replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>")
+      .replace(/•/g,"<br>•");
+    document.getElementById("simpleText").className="summary-text";
+  }catch{
+    document.getElementById("simpleText").textContent="Could not generate summary. Please try again.";
+    document.getElementById("simpleText").className="summary-text";
+  }
+}
+
+async function runDocList(){
+  try{
+    const r=await callAPI(
+      `Analyze this document and identify:
+1. What immigration or visa process this document relates to (e.g. "I-485 Adjustment of Status", "F-1 Student Visa", etc.)
+2. A list of 5-8 documents that are typically required in this type of process.
+
+Return ONLY a JSON object in this exact format:
+{"process":"Name of the process","documents":[{"name":"Document name","description":"One sentence explaining what this is and why it is typically needed","status":"Common requirement"}]}
+
+Document:
+${originalText}`,
+      "You are an immigration document analyst. Provide factual, general information about document requirements. Never give legal advice. Always note that requirements vary."
+    );
+    let json;
+    try{
+      json=JSON.parse(r.replace(/```json|```/g,"").trim());
+    }catch{throw new Error("JSON parse failed");}
+
+    document.getElementById("processLabel").innerHTML=
+      `<div class="process-badge"><i class="ti ti-id-badge"></i>&nbsp; ${json.process}</div>`;
+
+    const list=document.getElementById("docList");
+    list.innerHTML="";
+    json.documents.forEach((doc,i)=>{
+      const el=document.createElement("div");
+      el.className="doc-item";
+      el.innerHTML=`
+        <div class="doc-num">${i+1}</div>
+        <div>
+          <div class="doc-name">${doc.name}</div>
+          <div class="doc-desc">${doc.description}</div>
+          <span class="doc-status"><i class="ti ti-circle-check"></i>&nbsp; ${doc.status}</span>
+        </div>`;
+      list.appendChild(el);
+    });
+  }catch{
+    document.getElementById("docList").innerHTML=
+      '<div style="color:var(--cream-faint);font-size:13px;padding:12px 0">Could not generate document list. Please try again.</div>';
+  }
+}
+
+function applyRedaction(){
+  if(!originalText)return;
+  const rN=document.getElementById("redactNames").checked;
+  const rD=document.getElementById("redactDates").checked;
+  const rI=document.getElementById("redactNums").checked;
+  const rA=document.getElementById("redactAddr").checked;
+  const patterns=[];
+  if(rN){
+    patterns.push({re:/\b([A-Z][A-Z]+,\s+[A-Z][A-Z]+(?:\s+[A-Z][A-Z]+)?)\b/g,label:"[NAME]"});
+    patterns.push({re:/\b(Mr\.|Ms\.|Mrs\.|Dr\.)\s+[A-Z][a-z]+(?:\s+[A-Z]\.?\s*)?[A-Z][a-z]+\b/g,label:"[NAME]"});
+  }
+  if(rD){
+    patterns.push({re:/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b/g,label:"[DATE]"});
+    patterns.push({re:/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g,label:"[DATE]"});
+  }
+  if(rI){
+    patterns.push({re:/\b[A-Z]{3}-\d{2}-\d{3}-\d{6,}\b/g,label:"[CASE-NUMBER]"});
+    patterns.push({re:/\b[A-Z]\d{8,}\b/g,label:"[ID-NUMBER]"});
+    patterns.push({re:/\b\d{3}-\d{2}-\d{4}\b/g,label:"[SSN]"});
+    patterns.push({re:/\b1-\d{3}-\d{3}-\d{4}\b/g,label:"[PHONE]"});
+  }
+  if(rA){
+    patterns.push({re:/\d{3,5}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,?\s+(?:Apt|Suite|Unit|Ste)\.?\s*\w+,\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s+[A-Z]{2}\s+\d{5}/g,label:"[ADDRESS]"});
+    patterns.push({re:/\d{3,5}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:\s+(?:Ave|Avenue|St|Street|Blvd|Road|Dr|Drive|Lane|Ln|Way|Pkwy|Hwy|Highway)\.?)/g,label:"[ADDRESS]"});
+  }
+  let esc=originalText.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  patterns.forEach(({re,label})=>{
+    esc=esc.replace(re,`<span class="redacted" title="Hover to reveal">${label}</span>`);
+  });
+  document.getElementById("redactedText").innerHTML=esc.replace(/\n/g,"<br>");
+}
+
+function switchTab(name,el){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("show"));
+  el.classList.add("active");
+  document.getElementById("panel-"+name).classList.add("show");
+}
+
+function setLevel(level,el){
+  currentLevel=level;
+  document.querySelectorAll(".level-btn").forEach(b=>b.classList.remove("active"));
+  el.classList.add("active");
+  if(levelCache[level]){
+    document.getElementById("simpleText").innerHTML=levelCache[level]
+      .replace(/\n/g,"<br>")
+      .replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>");
+    document.getElementById("simpleText").className="summary-text";
+  } else if(originalText){
+    runSimpleSummary(level);
+  }
+}
+
+function speak(which){
+  if(!window.speechSynthesis){alert("Voice not supported in this browser.");return;}
+  window.speechSynthesis.cancel();
+  const text=which==="orig"?originalText:translatedText;
+  if(!text)return;
+  const btn=document.getElementById(which==="orig"?"voiceOrig":"voiceTrans");
+  if(btn.classList.contains("playing")){
+    window.speechSynthesis.cancel();
+    btn.classList.remove("playing");
+    btn.innerHTML='<i class="ti ti-player-play"></i>';
+    return;
+  }
+  utterance=new SpeechSynthesisUtterance(text);
+  const lang=document.getElementById("langSelect").value;
+  if(which==="trans"){
+    const m={"Spanish":"es-ES","French":"fr-FR","Mandarin Chinese":"zh-CN","Arabic":"ar-SA",
+      "Portuguese":"pt-BR","Hindi":"hi-IN","Korean":"ko-KR","Vietnamese":"vi-VN","Tagalog":"tl-PH"};
+    utterance.lang=m[lang]||"en-US";
+  } else {
+    utterance.lang="en-US";
+  }
+  utterance.rate=.9;
+  btn.classList.add("playing");
+  btn.innerHTML='<i class="ti ti-player-pause"></i>';
+  utterance.onend=()=>{
+    btn.classList.remove("playing");
+    btn.innerHTML='<i class="ti ti-player-play"></i>';
+  };
+  window.speechSynthesis.speak(utterance);
+}
+
+// ── DRAG & DROP ──
+const zone=document.getElementById("uploadZone");
+zone.addEventListener("dragover",e=>{e.preventDefault();zone.classList.add("drag");});
+zone.addEventListener("dragleave",()=>zone.classList.remove("drag"));
+zone.addEventListener("drop",e=>{
+  e.preventDefault();zone.classList.remove("drag");
+  const f=e.dataTransfer.files[0];
+  if(!f)return;
+  if(f.type==="text/plain"||f.name.endsWith(".txt")){
+    const r=new FileReader();
+    r.onload=ev=>document.getElementById("docInput").value=ev.target.result;
+    r.readAsText(f);
+  } else {
+    alert("Please drop a .txt file, or paste your text directly.");
+  }
+});
+</script>
+</body>
+</html>
