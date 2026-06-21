@@ -3,12 +3,12 @@ import { PrivacyTab } from "./PrivacyTab";
 import { TranslationTab } from "./TranslationTab";
 import { VoiceTab } from "./VoiceTab";
 
-const TABS: Array<{ id: AnalysisTab; label: string }> = [
-  { id: "privacy", label: "🔒 Privacy" },
-  { id: "translation", label: "🌐 Translation" },
-  { id: "voice", label: "🎙️ Voice" },
-  { id: "summary", label: "📖 Simple Summary" },
-  { id: "documents", label: "📋 Documents Needed" },
+const TABS: Array<{ id: AnalysisTab; label: string; icon: string }> = [
+  { id: "translation", label: "Translation", icon: "ti-language" },
+  { id: "privacy", label: "Privacy", icon: "ti-shield-lock" },
+  { id: "voice", label: "Voice Q&A", icon: "ti-microphone" },
+  { id: "summary", label: "Simple English", icon: "ti-abc" },
+  { id: "documents", label: "Documents Needed", icon: "ti-checklist" },
 ];
 
 interface AnalysisViewProps {
@@ -17,49 +17,84 @@ interface AnalysisViewProps {
 
 export function AnalysisView({ flow }: AnalysisViewProps) {
   return (
-    <div id="view-analysis">
-      <div className="analysis-header">
-        <button type="button" className="btn btn-sm btn-ghost" onClick={flow.goBack}>
-          ← Back
+    <div className="workspace show">
+      <div className="workspace-back">
+        <button type="button" className="btn btn-ghost btn-sm" onClick={flow.goBack}>
+          <i className="ti ti-arrow-left" /> Back to upload
         </button>
-        <div className="doc-meta">
-          <div className="doc-title">{flow.selectedDoc?.title ?? "Your document"}</div>
-          <div className="doc-subtitle">Privacy review · translate · voice</div>
-        </div>
-        <span className="doc-badge">✓ {flow.phase === "done" ? "Translated" : "Analyzed"}</span>
-        <div className="header-lang">{flow.targetLanguage}</div>
+        <span className="process-badge" style={{ marginLeft: 12 }}>
+          {flow.selectedDoc?.title ?? "Your document"} · {flow.targetLanguage}
+        </span>
       </div>
 
-      <div className="tab-bar">
+      <div className="tabs">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
-            className={`tab-btn${flow.activeTab === tab.id ? " active" : ""}`}
+            className={`tab${flow.activeTab === tab.id ? " active" : ""}`}
             onClick={() => flow.setActiveTab(tab.id)}
+            style={{ background: "none", border: "none" }}
           >
-            {tab.label}
+            <i className={`ti ${tab.icon}`} /> &nbsp;{tab.label}
           </button>
         ))}
       </div>
 
-      {flow.activeTab === "privacy" && <PrivacyTab flow={flow} />}
-      {flow.activeTab === "translation" && <TranslationTab flow={flow} />}
-      {flow.activeTab === "voice" && <VoiceTab flow={flow} />}
-      {flow.activeTab === "summary" && (
-        <div className="tab-content">
-          <div className="info-bar">
-            ℹ️ <span>Simple summary tab — placeholder from UI draft. Translation output includes plain-language explanations.</span>
+      <div className={`tab-panel${flow.activeTab === "translation" ? " show" : ""}`}>
+        {flow.activeTab === "translation" && <TranslationTab flow={flow} />}
+      </div>
+      <div className={`tab-panel${flow.activeTab === "privacy" ? " show" : ""}`}>
+        {flow.activeTab === "privacy" && <PrivacyTab flow={flow} />}
+      </div>
+      <div className={`tab-panel${flow.activeTab === "voice" ? " show" : ""}`}>
+        {flow.activeTab === "voice" && <VoiceTab flow={flow} />}
+      </div>
+      <div className={`tab-panel${flow.activeTab === "summary" ? " show" : ""}`}>
+        {flow.activeTab === "summary" && (
+          <div className="summary-card">
+            <div className="summary-level">
+              <span className="level-label">Reading level</span>
+              <button type="button" className="level-btn active">
+                Basic
+              </button>
+              <button type="button" className="level-btn" disabled>
+                Intermediate
+              </button>
+              <button type="button" className="level-btn" disabled>
+                Full Detail
+              </button>
+            </div>
+            <div className="summary-text">
+              {flow.reinsertedText
+                ? "Plain-language explanations are included in the translation output on the Translation tab."
+                : "Complete privacy review and translation first."}
+            </div>
           </div>
-        </div>
-      )}
-      {flow.activeTab === "documents" && (
-        <div className="tab-content">
-          <div className="info-bar">
-            ℹ️ <span>Document checklist — placeholder from UI draft (Phase 8+).</span>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
+      <div className={`tab-panel${flow.activeTab === "documents" ? " show" : ""}`}>
+        {flow.activeTab === "documents" && (
+          <>
+            <div className="disclaimer">
+              <strong>Informational Only — Not Legal Advice</strong>
+              <p>
+                Document checklists are a stretch goal in this MVP. Passage explains what a section is asking for — it
+                does not advise on how to respond.
+              </p>
+            </div>
+            <div className="doc-list">
+              <div className="doc-item">
+                <div className="doc-num">—</div>
+                <div>
+                  <div className="doc-name">Coming soon</div>
+                  <div className="doc-desc">Process-specific document lists will appear here in a future phase.</div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

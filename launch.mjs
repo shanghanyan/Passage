@@ -174,6 +174,44 @@ function openBrowser(url) {
   }
 }
 
+function appleScriptDialogLines(lines) {
+  return lines
+    .map((line) => `"${line.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`)
+    .join(" & return & ");
+}
+
+function waitForMacStopPanel(target) {
+  if (process.platform !== "darwin") {
+    return Promise.resolve();
+  }
+
+  const obs =
+    target === "phoenix"
+      ? "Local Phoenix → http://localhost:6006"
+      : "Arize AX Cloud → app.arize.com";
+
+  const message = appleScriptDialogLines([
+    "Passage is running at http://localhost:5173",
+    "",
+    `Observability: ${obs}`,
+    "",
+    "Leave this dialog open while you use Passage.",
+    "Click Stop Passage when you are done.",
+  ]);
+
+  return new Promise((resolve) => {
+    const panel = spawn(
+      "osascript",
+      [
+        "-e",
+        `display dialog ${message} buttons {"Stop Passage"} default button 1 with title "Passage Launcher"`,
+      ],
+      { stdio: "ignore" },
+    );
+    panel.on("close", () => resolve());
+  });
+}
+
 async function main() {
   fs.writeFileSync(LOG_FILE, "");
   const target = pickObservabilityTarget();
@@ -234,13 +272,14 @@ async function main() {
     log("Phoenix UI → http://localhost:6006");
   }
 
-  if (process.env.PASSAGE_LAUNCH_QUIET === "1" && process.platform === "darwin") {
-    execSync(
-      `osascript -e 'display notification "App at http://localhost:5173" with title "Passage started"'`,
-    );
+  if (process.platform === "darwin") {
+    log("Passage running — use the Stop Passage dialog to quit.");
+    await waitForMacStopPanel(target);
+    shutdown();
+    return;
   }
 
-  log("Passage running. Press Ctrl+C in this window to stop (or quit Launch Passage.app).");
+  log("Passage running. Press Ctrl+C in this window to stop.");
 
   await new Promise(() => {});
 }

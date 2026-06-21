@@ -1,45 +1,111 @@
+import { useEffect } from "react";
 import { usePassageFlow } from "../hooks/usePassageFlow";
 import { AnalysisView } from "./AnalysisView";
-import { UploadView } from "./UploadView";
+import { LandingPage, scrollToId } from "./LandingPage";
+import { UploadToolSection } from "./UploadToolSection";
 
 export function PassageApp() {
   const flow = usePassageFlow();
 
+  useEffect(() => {
+    const nav = document.getElementById("mainNav");
+    const onScroll = () => nav?.classList.toggle("stuck", window.scrollY > 40);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
     <>
-      <nav className="nav">
-        <button type="button" className="nav-logo" onClick={flow.view === "analysis" ? flow.goBack : undefined} style={{ border: "none", background: "none" }}>
-          <div className="nav-logo-icon">
-            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-              <path
-                d="M11 2C11 2 4 5 4 11.5C4 16 7.5 20 11 20C14.5 20 18 16 18 11.5C18 5 11 2 11 2Z"
-                fill="rgba(255,255,255,.25)"
-                stroke="white"
-                strokeWidth="1.5"
-              />
-              <path d="M11 6V16M8 9L11 6L14 9" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-          <span className="nav-logo-text">Passage</span>
+      <nav className="nav" id="mainNav">
+        <button
+          type="button"
+          className="nav-logo"
+          onClick={() => {
+            if (flow.view === "analysis") flow.goBack();
+            else window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          style={{ border: "none", background: "none" }}
+        >
+          <div className="nav-cross">✛</div>
+          <div className="nav-wordmark">PASSAGE</div>
         </button>
-        <span className="nav-tagline">Your Document, Your Language</span>
-        <div className="nav-actions">
-          {flow.view === "analysis" && (
-            <button type="button" className="btn btn-sm btn-ghost" onClick={flow.goBack}>
-              ← Back
-            </button>
-          )}
-        </div>
+        {flow.view === "upload" && (
+          <div className="nav-links">
+            <span className="nav-link" onClick={() => scrollToId("features")}>
+              Features
+            </span>
+            <span className="nav-link" onClick={() => scrollToId("how")}>
+              How It Works
+            </span>
+            <span className="nav-link" onClick={() => scrollToId("tool")}>
+              Tool
+            </span>
+          </div>
+        )}
+        {flow.view === "upload" ? (
+          <button type="button" className="nav-cta" onClick={() => scrollToId("tool")}>
+            <i className="ti ti-wand" /> Try Passage
+          </button>
+        ) : (
+          <button type="button" className="nav-cta" onClick={flow.goBack}>
+            <i className="ti ti-arrow-left" /> New Document
+          </button>
+        )}
       </nav>
 
-      {flow.view === "upload" ? <UploadView flow={flow} /> : <AnalysisView flow={flow} />}
+      {flow.view === "upload" ? (
+        <>
+          <LandingPage />
+          <UploadToolSection flow={flow} />
+        </>
+      ) : (
+        <section className="tool-section" style={{ paddingTop: 120 }}>
+          <div className="tool-inner">
+            <AnalysisView flow={flow} />
+          </div>
+        </section>
+      )}
 
       <footer className="footer">
-        <div className="footer-logo">Passage</div>
-        <p>Explains immigration documents — not legal advice.</p>
+        <div className="footer-inner">
+          <div className="footer-top">
+            <div>
+              <div className="footer-brand">
+                <em>✛</em> PASSAGE
+              </div>
+              <p className="footer-desc">
+                Privacy-first translation and explanation for immigration paperwork — with redaction you can verify in
+                devtools.
+              </p>
+              <div className="footer-legal">
+                <strong>Legal Notice</strong>
+                Passage explains documents in plain language. It does not provide legal advice or tell anyone how to
+                respond.
+              </div>
+            </div>
+            <div>
+              <div className="footer-col-head">Features</div>
+              <div className="footer-links">
+                <span className="footer-link" onClick={() => scrollToId("tool")}>
+                  Translation
+                </span>
+                <span className="footer-link" onClick={() => scrollToId("tool")}>
+                  Privacy Shield
+                </span>
+                <span className="footer-link" onClick={() => scrollToId("tool")}>
+                  Voice Q&amp;A
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="footer-bottom">
+            <span className="footer-copy">UC Berkeley AI Hackathon 2026 — World Track</span>
+          </div>
+        </div>
       </footer>
 
-      {flow.toast && <div id="toast">✓ {flow.toast}</div>}
+      {flow.toast && <div className="passage-toast">✓ {flow.toast}</div>}
     </>
   );
 }

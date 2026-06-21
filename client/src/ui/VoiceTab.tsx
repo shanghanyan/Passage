@@ -75,7 +75,6 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
       if (result.from_cache) meta.push("LangCache hit");
       if (result.memory_turns) meta.push(`${result.memory_turns} prior turn(s) from Agent Memory`);
       setVoiceMeta(meta.length > 0 ? meta.join(" · ") : null);
-      console.log("[Passage Phase 6] TTS payload (must be PII-free):", result.tts_text);
 
       const audioBuf = await fetchSpeakAudio(result.tts_text);
       const blob = new Blob([audioBuf], { type: "audio/mpeg" });
@@ -97,76 +96,87 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
 
   if (!canUseVoice) {
     return (
-      <div className="tab-content">
-        <div className="info-bar">
-          ℹ️ <span>Complete translation first — voice questions use the redacted document context.</span>
-        </div>
-      </div>
+      <p className="notice">
+        <i className="ti ti-info-circle" /> Complete translation first — voice questions use the redacted document
+        context.
+      </p>
     );
   }
 
   return (
-    <div className="tab-content">
+    <>
       {listening && (
-        <div className="disclaimer" style={{ background: "var(--b600)" }}>
-          ⚠️{" "}
-          <span>
-            <strong>Please type any ID numbers — don&apos;t say them out loud.</strong> Only general questions
-            should be spoken.
-          </span>
+        <div className="voice-mic-disclaimer">
+          <strong>Please type any ID numbers — don&apos;t say them out loud.</strong> Only general questions should be
+          spoken.
         </div>
       )}
 
-      <div className="summary-card" style={{ marginBottom: 20 }}>
-        <h3>🎙️ Ask about this letter</h3>
-        <p style={{ fontSize: 14, color: "var(--s600)", marginBottom: 16 }}>
+      <div className="summary-card">
+        <div className="summary-level">
+          <span className="level-label">Ask about this letter</span>
+        </div>
+        <p className="notice" style={{ marginBottom: 16 }}>
           Try: &quot;What is this letter asking me to do?&quot; or &quot;What does RFE mean?&quot;
         </p>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-          <button type="button" className={`btn btn-md ${listening ? "stop-btn" : "btn-primary"}`} onClick={() => void toggleMic()}>
-            {listening ? "⏹ Stop mic" : "🎙️ Start mic"}
+        <div className="tool-actions" style={{ marginBottom: 16 }}>
+          <button type="button" className={`btn ${listening ? "btn-ghost" : "btn-red"}`} onClick={() => void toggleMic()}>
+            <i className={`ti ${listening ? "ti-player-stop" : "ti-microphone"}`} /> {listening ? "Stop mic" : "Start mic"}
           </button>
-          <button type="button" className="btn btn-md btn-secondary" disabled={busy || !transcript.trim()} onClick={() => void submitQuestion()}>
-            {busy ? "Asking…" : "Send question"}
+          <button type="button" className="btn btn-ghost" disabled={busy || !transcript.trim()} onClick={() => void submitQuestion()}>
+            {busy ? (
+              <>
+                <span className="spinner" /> Asking…
+              </>
+            ) : (
+              <>
+                <i className="ti ti-send" /> Send question
+              </>
+            )}
           </button>
         </div>
 
-        <label style={{ fontSize: 12, fontWeight: 700, color: "var(--s500)" }}>Transcript</label>
+        <label className="level-label" htmlFor="voice-transcript">
+          Transcript
+        </label>
         <textarea
+          id="voice-transcript"
+          className="voice-textarea"
           rows={3}
           value={transcript}
           onChange={(e) => setTranscript(e.target.value)}
           placeholder="Speak or type your question…"
-          style={{ width: "100%", marginTop: 6, padding: 10, borderRadius: 8, border: "1.5px solid var(--s200)" }}
         />
       </div>
 
       {voiceError && (
-        <p className="error" role="alert">
+        <p className="passage-error" role="alert">
           {voiceError}
         </p>
       )}
 
-      {voiceMeta && (
-        <p className="hint" style={{ marginTop: 8 }}>
-          {voiceMeta}
-        </p>
-      )}
+      {voiceMeta && <p className="notice">{voiceMeta}</p>}
 
       {answer && (
         <div className="summary-card">
-          <h3>Answer</h3>
-          <pre style={{ whiteSpace: "pre-wrap", fontSize: 14 }}>{answer}</pre>
+          <div className="summary-level">
+            <span className="level-label">Answer</span>
+          </div>
+          <div className="summary-text">{answer}</div>
         </div>
       )}
 
       {ttsPreview && (
-        <div className="summary-card" style={{ marginTop: 16 }}>
-          <h3>🔊 Text sent to TTS (verify: no raw PII)</h3>
-          <pre style={{ whiteSpace: "pre-wrap", fontSize: 13, color: "var(--s600)" }}>{ttsPreview}</pre>
+        <div className="summary-card">
+          <div className="summary-level">
+            <span className="level-label">Text sent to TTS (verify: no raw PII)</span>
+          </div>
+          <div className="summary-text" style={{ fontSize: 13, color: "var(--cream-dim)" }}>
+            {ttsPreview}
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

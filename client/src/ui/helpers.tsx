@@ -4,7 +4,7 @@ export function renderTokenHighlights(text: string): ReactNode[] {
   const tokenPattern = /(⟦PII:[A-Z_]+:\d+⟧)/g;
   return text.split(tokenPattern).map((part, i) =>
     part.startsWith("⟦PII:") ? (
-      <mark key={i} className="token-highlight" title="Redacted identifier">
+      <mark key={i} className="redacted token-highlight" title="Redacted identifier">
         {part}
       </mark>
     ) : (

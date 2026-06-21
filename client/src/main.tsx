@@ -2,7 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { initSentry } from "./lib/sentry";
 import App from "./App";
-import "./styles/passage-draft.css";
+import "./styles/passage-v2.css";
+import "./styles/passage-app.css";
 
 initSentry();
 

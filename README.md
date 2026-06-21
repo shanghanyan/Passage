@@ -85,10 +85,19 @@ If unset, voice still works — just without conversation memory or cache hits.
    - **Local Phoenix** — starts Docker Desktop if needed, runs Phoenix, exports traces to `http://localhost:6006`
    - **Arize AX Cloud** — sends traces to [app.arize.com](https://app.arize.com) (requires `ARIZE_SPACE_ID` + `ARIZE_API_KEY` in `server/.env`)
 4. Wait for the browser to open at **http://localhost:5173** (API server: **http://localhost:3001**).
+5. A **Passage Launcher** dialog stays on screen while the app runs — click **Stop Passage** when you are done (no Terminal needed).
 
-When you quit (Ctrl+C in Terminal, or close the launcher window), the app stops server + client, tears down the Phoenix container, and quits Docker Desktop **only if the launcher started Docker for you**. If Docker was already running, it stays open.
+When you quit via **Stop Passage**, the app stops server + client, tears down the Phoenix container, and quits Docker Desktop **only if the launcher started Docker for you**. If Docker was already running, it stays open.
 
-**Logs:** `.passage-launch.log` in the repo root. The `.app` launcher runs quietly in Terminal — check this file if something fails silently.
+**If macOS blocks double-click** (“cannot be opened” / unidentified developer):
+
+```bash
+./scripts/fix-launch-app.sh
+```
+
+Then double-click again. The first time after signing, you may still need **right-click → Open → Open** once.
+
+**Logs:** `.passage-launch.log` in the repo root.
 
 **Docker lifecycle (Local Phoenix):** Docker Desktop can be fully off before launch. The launcher turns it on, starts Phoenix, and cleans up on exit. You only need Docker Desktop *installed* — no manual `docker compose` before each session.
 
@@ -103,7 +112,7 @@ Observability picker:
 
 | Command | Backend |
 |---|---|
-| `npm run launch` | macOS dialog; elsewhere defaults to Local Phoenix |
+| `npm run launch` | macOS dialog + **Stop Passage** panel; elsewhere defaults to Local Phoenix |
 | `npm run launch -- --local` | Local Phoenix (Docker) |
 | `npm run launch -- --cloud` | Arize AX Cloud |
 | `npm run launch -- --obs=phoenix` | Same as `--local` |
@@ -236,10 +245,11 @@ Failures logged in [`08-error-log.md`](08-error-log.md).
 ## Project structure
 
 ```
-launch.mjs / Launch Passage.app     — one-click launcher with observability picker
+launch.mjs / Launch Passage.app     — one-click launcher with observability picker + Stop panel
+scripts/fix-launch-app.sh           — macOS Gatekeeper fix (sign + remove quarantine)
 /client
-  src/hooks/usePassageFlow.ts       — core flow state + actions
-  src/lib/                          — detection, redaction, voice, scoring
+  src/ui/                           — V2 draft shell (LandingPage, UploadToolSection, workspace tabs)
+  src/styles/passage-v2.css         — extracted from passage V2 Draft.html
 /server
   src/lib/observability/            — Phoenix + Arize AX dual export
   src/lib/agent-memory.ts           — Redis Agent Memory REST client
