@@ -33,15 +33,18 @@ export function renderTokenHighlights(
   tokenMeta: Record<string, TokenMeta> = {},
 ): ReactNode[] {
   const tokenPattern = /(⟦PII:[A-Z_]+:\d+⟧)/g;
+  let tokenIndex = 0;
   return text.split(tokenPattern).map((part, i) => {
     if (!part.startsWith("⟦PII:")) {
       return <span key={i}>{part}</span>;
     }
     const type = tokenTypeFromString(part);
+    const idx = tokenIndex++;
     return (
       <mark
         key={i}
         className="token-redaction-bar"
+        style={{ "--token-index": idx } as React.CSSProperties}
         title={tooltipForToken(part, tokenMeta)}
         aria-label={`Redacted ${type}`}
       >

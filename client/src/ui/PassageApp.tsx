@@ -9,6 +9,7 @@ import { EditRedactPhase } from "./EditRedactPhase";
 import { InputPhase } from "./InputPhase";
 import { LandingScroll } from "./LandingScroll";
 import { LoadingState } from "./LoadingState";
+import { RiseIn } from "./motion";
 import { PrivacyTab } from "./PrivacyTab";
 
 export function PassageApp() {
@@ -137,14 +138,16 @@ export function PassageApp() {
           {flow.phase === "edit" && <EditRedactPhase flow={flow} />}
 
           {flow.phase === "preview" && (
-            <section className="workflow-card">
-              <div className="workflow-card-head">
+            <section className="workflow-card rise-in-group">
+              <RiseIn className="workflow-card-head">
                 <h2>Scrubbed preview</h2>
                 <p className="notice">
                   Tokens replace real values. Only token text reaches Claude — tap a highlight to verify detection.
                 </p>
-              </div>
-              <PrivacyTab flow={flow} />
+              </RiseIn>
+              <RiseIn delay={0.17}>
+                <PrivacyTab flow={flow} />
+              </RiseIn>
             </section>
           )}
 

@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type CSSProperties } from "react";
 import { PII_TYPES, piiLabel } from "./helpers";
+import { RiseIn } from "./motion";
 import type { PassageFlow } from "../hooks/usePassageFlow";
 import type { DetectedSpan, PiiType } from "../lib/types";
 
@@ -37,9 +38,12 @@ export function ManualRedactPanel({ flow }: { flow: PassageFlow }) {
     [flow, selection],
   );
 
+  const selectionPreview =
+    selection && selection.text.length > 48 ? `${selection.text.slice(0, 48)}…` : selection?.text;
+
   return (
-    <div className="manual-redact-panel">
-      <p className="level-label">Mark additional PII in source text</p>
+    <RiseIn className="manual-redact-panel">
+      <p className="micro-label">Mark additional PII in source text</p>
       <p className="notice" style={{ marginBottom: 10 }}>
         Highlight any text the auto-detector missed, choose a type, then re-analyze. Manual marks merge with
         automatic detection.
@@ -58,9 +62,17 @@ export function ManualRedactPanel({ flow }: { flow: PassageFlow }) {
       />
 
       {selection && (
-        <div className="manual-redact-toolbar" role="toolbar" aria-label="Mark selection as PII">
+        <div className="manual-redact-toolbar rise-in" role="toolbar" aria-label="Mark selection as PII">
           <span className="manual-redact-label">
-            Redact &ldquo;{selection.text.length > 48 ? `${selection.text.slice(0, 48)}…` : selection.text}&rdquo; as:
+            Redact{" "}
+            <mark
+              key={selection.text}
+              className="token-redaction-bar manual-redact-confirm-bar"
+              style={{ "--token-index": 0 } as CSSProperties}
+            >
+              {selectionPreview}
+            </mark>{" "}
+            as:
           </span>
           <div className="manual-redact-types">
             {PII_TYPES.map((type) => (
@@ -74,14 +86,18 @@ export function ManualRedactPanel({ flow }: { flow: PassageFlow }) {
 
       {flow.manualSpans.length > 0 && (
         <div className="manual-span-list">
-          <span className="level-label">Manual marks ({flow.manualSpans.length})</span>
+          <span className="micro-label">Manual marks ({flow.manualSpans.length})</span>
           <ul>
             {flow.manualSpans.map((span, i) => (
               <li key={`${span.start}-${span.end}-${span.type}-${i}`}>
                 <span className="manual-span-type">{piiLabel(span.type)}</span>
-                <span className="manual-span-value">
+                <mark
+                  className="token-redaction-bar manual-span-value-bar"
+                  style={{ "--token-index": i } as CSSProperties}
+                  title={span.value}
+                >
                   {span.value.length > 60 ? `${span.value.slice(0, 60)}…` : span.value}
-                </span>
+                </mark>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => flow.removeManualSpan(i)}>
                   Remove
                 </button>
@@ -109,6 +125,6 @@ export function ManualRedactPanel({ flow }: { flow: PassageFlow }) {
           )}
         </button>
       </div>
-    </div>
+    </RiseIn>
   );
 }

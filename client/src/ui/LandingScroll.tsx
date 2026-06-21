@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useUiLocale } from "../i18n/useUiLocale";
+import { RiseIn } from "./motion";
 import type { PassageFlow } from "../hooks/usePassageFlow";
 
 interface LandingScrollProps {
@@ -9,14 +10,8 @@ interface LandingScrollProps {
 
 export function LandingScroll({ flow, onGetStarted }: LandingScrollProps) {
   const { t } = useUiLocale(flow.uiLocale);
-  const [showTagline, setShowTagline] = useState(false);
   const aboutRef = useRef<HTMLElement>(null);
   const [aboutVisible, setAboutVisible] = useState(false);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setShowTagline(true), 1200);
-    return () => window.clearTimeout(timer);
-  }, []);
 
   useEffect(() => {
     const el = aboutRef.current;
@@ -34,11 +29,9 @@ export function LandingScroll({ flow, onGetStarted }: LandingScrollProps) {
   return (
     <div className="landing-scroll">
       <section className="landing-scroll-hero" aria-label="Passage">
-        <h1 className="landing-scroll-brand landing-scroll-brand--in">Passage</h1>
-        <p className={`landing-scroll-tagline${showTagline ? " landing-scroll-tagline--in" : ""}`}>
-          {t("app.tagline")}
-        </p>
-        <div className={`landing-scroll-cue${showTagline ? " landing-scroll-cue--in" : ""}`} aria-hidden="true">
+        <h1 className="landing-scroll-brand">Passage</h1>
+        <p className="landing-scroll-tagline">{t("app.tagline")}</p>
+        <div className="landing-scroll-cue" aria-hidden="true">
           <span>Scroll</span>
           <i className="ti ti-chevron-down" />
         </div>
@@ -48,20 +41,22 @@ export function LandingScroll({ flow, onGetStarted }: LandingScrollProps) {
         ref={aboutRef}
         className={`landing-scroll-about${aboutVisible ? " landing-scroll-about--in" : ""}`}
       >
-        <p className="landing-scroll-eyebrow">{t("landing.eyebrow")}</p>
-        <h2 className="landing-scroll-title">{t("landing.title")}</h2>
-        <p className="landing-scroll-body">{t("landing.body")}</p>
-        <p className="landing-scroll-meta">{t("landing.privacy")}</p>
-        <button
-          type="button"
-          className="btn btn-primary landing-scroll-cta"
-          onClick={() => {
-            onGetStarted();
-            document.getElementById("passage-tool")?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}
-        >
-          {t("landing.cta")} <i className="ti ti-arrow-down" />
-        </button>
+        <p className="landing-scroll-eyebrow rise-in">{t("landing.eyebrow")}</p>
+        <h2 className="landing-scroll-title rise-in">{t("landing.title")}</h2>
+        <p className="landing-scroll-body rise-in">{t("landing.body")}</p>
+        <p className="landing-scroll-meta rise-in">{t("landing.privacy")}</p>
+        <RiseIn delay={0.68} className="landing-scroll-cta-wrap">
+          <button
+            type="button"
+            className="btn btn-primary landing-scroll-cta"
+            onClick={() => {
+              onGetStarted();
+              document.getElementById("passage-tool")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+          >
+            {t("landing.cta")} <i className="ti ti-arrow-down" />
+          </button>
+        </RiseIn>
       </section>
     </div>
   );

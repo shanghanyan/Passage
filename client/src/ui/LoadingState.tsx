@@ -20,7 +20,7 @@ export function LoadingState({
       aria-busy="true"
     >
       <div className="loading-state__spinner" aria-hidden />
-      <div className="loading-state__text">
+      <div className="loading-state__text rise-in">
         <p className="loading-state__title">{title}</p>
         {subtitle && <p className="loading-state__subtitle">{subtitle}</p>}
       </div>

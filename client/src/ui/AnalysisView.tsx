@@ -1,5 +1,6 @@
 import type { PassageFlow, AnalysisTab } from "../hooks/usePassageFlow";
 import { useUiLocale } from "../i18n/useUiLocale";
+import { RiseIn } from "./motion";
 import { PrivacyTab } from "./PrivacyTab";
 import { RelatedDocumentsTab } from "./RelatedDocumentsTab";
 import { TranslationTab } from "./TranslationTab";
@@ -20,8 +21,8 @@ export function AnalysisView({ flow }: AnalysisViewProps) {
   ];
 
   return (
-    <div className="workspace show">
-      <div className="workspace-back">
+    <div className="workspace show rise-in-group">
+      <RiseIn className="workspace-back">
         <button type="button" className="btn btn-ghost btn-sm" onClick={flow.startOver}>
           <i className="ti ti-arrow-left" /> Start over
         </button>
@@ -34,8 +35,9 @@ export function AnalysisView({ flow }: AnalysisViewProps) {
             Translating…
           </span>
         )}
-      </div>
+      </RiseIn>
 
+      <RiseIn delay={0.17}>
       <div className="tabs">
         {TABS.map((tab) => (
           <button
@@ -49,7 +51,9 @@ export function AnalysisView({ flow }: AnalysisViewProps) {
           </button>
         ))}
       </div>
+      </RiseIn>
 
+      <RiseIn delay={0.34}>
       <div className={`tab-panel${flow.activeTab === "translation" ? " show" : ""}`}>
         {flow.activeTab === "translation" && <TranslationTab flow={flow} />}
       </div>
@@ -62,6 +66,7 @@ export function AnalysisView({ flow }: AnalysisViewProps) {
       <div className={`tab-panel${flow.activeTab === "documents" ? " show" : ""}`}>
         {flow.activeTab === "documents" && <RelatedDocumentsTab flow={flow} />}
       </div>
+      </RiseIn>
     </div>
   );
 }

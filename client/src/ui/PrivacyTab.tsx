@@ -1,5 +1,6 @@
 import { ManualRedactPanel } from "./ManualRedactPanel";
 import { TYPE_COLORS, piiBadgeClass, piiLabel, renderTokenHighlights } from "./helpers";
+import { CountUp } from "./motion";
 import type { PassageFlow } from "../hooks/usePassageFlow";
 
 export function PrivacyTab({ flow }: { flow: PassageFlow }) {
@@ -35,7 +36,9 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
             {Object.entries(counts).map(([type, count]) => (
               <div key={type} className="pii-stat">
                 <span>{piiLabel(type)}</span>
-                <span className="pii-count">{count}</span>
+                <span className="pii-count">
+                  <CountUp value={count} />
+                </span>
               </div>
             ))}
           </div>
@@ -60,7 +63,9 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
               <h3>Recall score</h3>
               <div className="pii-stat">
                 <span>Observability</span>
-                <span className="pii-count">{(flow.lastRecall * 100).toFixed(0)}%</span>
+                <span className="pii-count">
+                  <CountUp value={Math.round(flow.lastRecall * 100)} suffix="%" />
+                </span>
               </div>
             </div>
           )}

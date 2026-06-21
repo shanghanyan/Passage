@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { apiFetch, ConnectionLostError } from "../lib/api-fetch";
 import type { PassageFlow } from "../hooks/usePassageFlow";
 import { useUiLocale } from "../i18n/useUiLocale";
+import { RiseIn } from "./motion";
 import { LoadingState } from "./LoadingState";
 
 interface RelatedDoc {
@@ -93,16 +94,25 @@ export function RelatedDocumentsTab({ flow }: { flow: PassageFlow }) {
   }
 
   return (
-    <>
-      <p className="notice docs-disclaimer">{t("docs.disclaimer")}</p>
+    <div className="rise-in-group">
+      <RiseIn>
+        <p className="micro-label docs-section-header">{t("tab.documents")}</p>
+        <p className="notice docs-disclaimer">{t("docs.disclaimer")}</p>
+      </RiseIn>
       {processLabel && (
-        <div className="process-badge" style={{ marginBottom: 16 }}>
-          <i className="ti ti-id-badge" /> {processLabel}
-        </div>
+        <RiseIn delay={0.17}>
+          <div className="process-badge" style={{ marginBottom: 16 }}>
+            <i className="ti ti-id-badge" /> {processLabel}
+          </div>
+        </RiseIn>
       )}
       <div className="doc-list">
         {documents.map((doc, index) => (
-          <div key={`${doc.name}-${index}`} className="doc-item">
+          <div
+            key={`${doc.name}-${index}`}
+            className="doc-item doc-item--rise"
+            style={{ "--rise-delay": `${0.34 + index * 0.15}s` } as CSSProperties}
+          >
             <div className="doc-num">{index + 1}</div>
             <div>
               <div className="doc-name">{doc.name}</div>
@@ -114,6 +124,6 @@ export function RelatedDocumentsTab({ flow }: { flow: PassageFlow }) {
           </div>
         ))}
       </div>
-    </>
+    </div>
   );
 }
