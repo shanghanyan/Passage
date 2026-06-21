@@ -28,7 +28,7 @@ export async function postVoiceQuestion(req: Request, res: Response): Promise<vo
   }
 
   const sessionId = typeof session_id === "string" ? session_id : "unknown";
-  const targetLanguage = typeof target_language === "string" ? target_language.trim() : "Spanish";
+  const targetLanguage = typeof target_language === "string" ? target_language.trim() : "English";
   const question = transcript.trim();
 
   try {

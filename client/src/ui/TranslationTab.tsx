@@ -59,9 +59,10 @@ export function TranslationTab({ flow }: { flow: PassageFlow }) {
           <div className="pane-body">
             {flow.redaction && renderTokenHighlights(flow.translatedTokens, flow.redaction.tokenMeta)}
           </div>
-          {flow.translatedTokens && (
+          {(flow.explanationText || flow.translatedTokens) && (
             <ExplanationTts
               claudeTokenizedText={flow.translatedTokens}
+              ttsText={flow.explanationText}
               targetLanguage={flow.targetLanguage}
               langCode={flow.langCode}
               uiLocale={flow.uiLocale}

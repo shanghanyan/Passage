@@ -1,5 +1,5 @@
 import { ManualRedactPanel } from "./ManualRedactPanel";
-import { TYPE_COLORS, piiBadgeClass, renderTokenHighlights } from "./helpers";
+import { TYPE_COLORS, PII_TYPES, countTokensByType, piiBadgeClass, renderTokenHighlights } from "./helpers";
 import { piiLabel } from "../i18n/strings";
 import { useUiLocale } from "../i18n/useUiLocale";
 import { CountUp } from "./motion";
@@ -9,10 +9,8 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
   const { t, locale } = useUiLocale(flow.uiLocale);
   if (!flow.redaction) return null;
 
-  const counts = flow.detectedSpans.reduce<Record<string, number>>((acc, s) => {
-    acc[s.type] = (acc[s.type] ?? 0) + 1;
-    return acc;
-  }, {});
+  const counts = countTokensByType(flow.redaction.tokenMeta);
+  const typesWithCounts = PII_TYPES.filter((type) => (counts[type] ?? 0) > 0);
 
   const sendBlocked = Boolean(flow.detectionWarning);
   const canSend = flow.phase === "preview";
@@ -37,11 +35,11 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
         <div className="pii-sidebar">
           <div className="pii-card">
             <h3>{t("privacy.detectedByType")}</h3>
-            {Object.entries(counts).map(([type, count]) => (
+            {typesWithCounts.map((type) => (
               <div key={type} className="pii-stat">
                 <span>{piiLabel(locale, type)}</span>
                 <span className="pii-count">
-                  <CountUp value={count} />
+                  <CountUp key={`${type}-${counts[type]}`} value={counts[type] ?? 0} />
                 </span>
               </div>
             ))}

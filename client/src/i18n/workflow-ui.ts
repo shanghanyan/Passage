@@ -24,6 +24,8 @@ export const WORKFLOW_UI: Record<string, Record<string, string>> = {
     "privacy.noticeFixGaps": "Fix detection gaps before sending. Raw values never leave your browser.",
     "privacy.tokenMap": "Token map",
     "privacy.keys": "keys",
+    "translation.languageChanged":
+      "Translation language changed — review privacy and send again to translate in the new language.",
     "manual.markAdditional": "Mark additional PII in source text",
     "manual.notice":
       "Highlight any text the auto-detector missed, choose a type, then re-analyze. Manual marks merge with automatic detection.",

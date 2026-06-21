@@ -37,4 +37,20 @@ assert(redacted.includes("⟦PII:A_NUMBER:1⟧"), "A_NUMBER token in redacted te
 const dobTokens = Object.keys(tokenMap).filter((t) => t.includes(":DOB:"));
 assert(dobTokens.length === 2, "two DOB tokens");
 
+const manualLeak = "Secret phrase XYZ-LEAK-999";
+const withLeak = `${SAMPLE}\nNote: ${manualLeak}`;
+const autoOnly = mergeSpansWithDropped(detectRegexOnly(withLeak)).kept;
+const manualSpan = {
+  type: "NAME",
+  start: withLeak.indexOf(manualLeak),
+  end: withLeak.indexOf(manualLeak) + manualLeak.length,
+  value: manualLeak,
+  source: "manual",
+  confidence: 1,
+};
+const merged = mergeSpansWithDropped([...autoOnly, manualSpan]).kept;
+const manualRedacted = redact(withLeak, merged);
+assert(!manualRedacted.redacted.includes(manualLeak), "manual span redacted in merged pipeline");
+assert(manualRedacted.redacted.includes("⟦PII:NAME:"), "manual span produces NAME token");
+
 console.log(process.exitCode ? "\nVERIFY REDACT FAILED" : "\nVERIFY REDACT PASSED");

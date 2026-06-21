@@ -38,25 +38,27 @@ export function CountUp({
   suffix?: string;
   decimals?: number;
 }) {
-  const [display, setDisplay] = useState(0);
-  const prev = useRef<number | null>(null);
+  const [display, setDisplay] = useState(value);
 
   useEffect(() => {
-    const from = prev.current ?? 0;
-    prev.current = value;
-    if (value === from) return;
+    if (value === 0) {
+      setDisplay(0);
+      return;
+    }
 
-    const start = performance.now();
     let raf = 0;
+    const start = performance.now();
 
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / duration);
       const eased = 1 - (1 - t) ** 3;
-      const next = from + (value - from) * eased;
+      const next = value * eased;
       setDisplay(decimals > 0 ? next : Math.round(next));
       if (t < 1) raf = requestAnimationFrame(tick);
+      else setDisplay(value);
     };
 
+    setDisplay(0);
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [value, duration, decimals]);

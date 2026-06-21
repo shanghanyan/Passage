@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { captureExternalError } from "./sentry.js";
 import { IMMIGRATION_GLOSSARY } from "./immigration-glossary.js";
+import { formatTranslationSections } from "./explanation-text.js";
 import { verifyTranslationMeaning } from "./translation-verify.js";
 
 const MODEL = "claude-sonnet-4-6";
@@ -14,11 +15,15 @@ Rules:
 2. Reproduce every placeholder token exactly, in its original position, in your output.
 3. Translate the surrounding text into {{target_language}} and add a short
    plain-language explanation of what each section is asking for or telling the person.
-4. Explain what is being asked. Do not advise the person on how to answer it —
+4. Put ONLY the translated document in the \`translation\` tool field and ONLY the
+   plain-language summary in the \`explanation\` tool field — never mix them.
+5. Write BOTH fields entirely in {{target_language}} — no other languages, ever.
+   When {{target_language}} is English, every word in both fields must be English.
+6. Explain what is being asked. Do not advise the person on how to answer it —
    that's legal advice, and out of scope.
-5. If a sentence can't be understood without knowing what a token represents,
+7. If a sentence can't be understood without knowing what a token represents,
    describe the field type generally rather than guessing the value.
-6. Preserve all dates, deadlines, and day-count phrases exactly — these are legally critical.
+8. Preserve all dates, deadlines, and day-count phrases exactly — these are legally critical.
 
 ${IMMIGRATION_GLOSSARY}`;
 
@@ -63,14 +68,13 @@ function systemBlocks(targetLanguage: string): Anthropic.Messages.MessageCreateP
   ];
 }
 
-function formatStructuredOutput(input: {
+interface ParsedTranslation {
   translation: string;
   explanation: string;
-}): string {
-  return `## Translation\n${input.translation.trim()}\n\n---\n\n## Explanation\n${input.explanation.trim()}`;
+  formatted: string;
 }
 
-function parseToolTranslation(message: Anthropic.Message): string | null {
+function parseToolTranslation(message: Anthropic.Message, targetLanguage: string): ParsedTranslation | null {
   for (const block of message.content) {
     if (block.type !== "tool_use" || block.name !== "submit_translation") continue;
     const input = block.input as {
@@ -78,16 +82,21 @@ function parseToolTranslation(message: Anthropic.Message): string | null {
       explanation?: string;
     };
     if (!input.translation?.trim() || !input.explanation?.trim()) return null;
-    return formatStructuredOutput({
-      translation: input.translation,
-      explanation: input.explanation,
-    });
+    const translation = input.translation.trim();
+    const explanation = input.explanation.trim();
+    return {
+      translation,
+      explanation,
+      formatted: formatTranslationSections(translation, explanation, targetLanguage),
+    };
   }
   return null;
 }
 
 export interface TranslateResult {
-  text: string;
+  translation: string;
+  explanation: string;
+  formatted: string;
   traceId: string;
   meaningCheck: { ok: true } | { ok: false; reason: string };
 }
@@ -123,19 +132,29 @@ export async function translateRedactedText(
       ],
     });
 
-    let text = parseToolTranslation(message);
-    if (!text) {
+    let parsed = parseToolTranslation(message, targetLanguage);
+    if (!parsed) {
       const fallback = message.content.find((b) => b.type === "text");
       if (fallback?.type !== "text") throw new Error("Unexpected Claude response shape");
-      text = fallback.text;
+      parsed = {
+        translation: fallback.text,
+        explanation: "",
+        formatted: fallback.text,
+      };
     }
 
     let meaningCheck: TranslateResult["meaningCheck"] = { ok: true };
     if (!options.skipMeaningCheck) {
-      meaningCheck = await verifyBackTranslation(anthropic, text, redactedText, targetLanguage);
+      meaningCheck = await verifyBackTranslation(anthropic, parsed.formatted, redactedText, targetLanguage);
     }
 
-    return { text, traceId: message.id, meaningCheck };
+    return {
+      translation: parsed.translation,
+      explanation: parsed.explanation,
+      formatted: parsed.formatted,
+      traceId: message.id,
+      meaningCheck,
+    };
   } catch (err) {
     captureExternalError("claude", err, { targetLanguage });
     throw err;

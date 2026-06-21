@@ -24,6 +24,7 @@ export interface RedactionResult {
 export interface TranslateSuccess {
   ok: true;
   translated_text: string;
+  explanation_text?: string;
   trace_id: string;
 }
 

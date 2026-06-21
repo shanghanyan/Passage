@@ -82,3 +82,12 @@ export function piiLabel(type: string): string {
   };
   return labels[type] ?? type;
 }
+
+/** Token counts in the scrubbed preview — matches what is actually redacted. */
+export function countTokensByType(tokenMeta: Record<string, TokenMeta>): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const meta of Object.values(tokenMeta)) {
+    counts[meta.type] = (counts[meta.type] ?? 0) + 1;
+  }
+  return counts;
+}

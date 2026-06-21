@@ -35,12 +35,12 @@ export async function postTranslate(req: Request, res: Response): Promise<void> 
   }
 
   try {
-    const { text, traceId, meaningCheck } = await translateRedactedText(
+    const { translation, explanation, formatted, traceId, meaningCheck } = await translateRedactedText(
       redacted_text,
       target_language.trim(),
     );
 
-    let output = text;
+    let output = formatted;
     if (planted_validation_failure === true) {
       output = simulatePlantedValidationFailure(output, redacted_text);
     }
@@ -65,7 +65,12 @@ export async function postTranslate(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    res.json({ ok: true, translated_text: output, trace_id: traceId });
+    res.json({
+      ok: true,
+      translated_text: translation,
+      explanation_text: explanation,
+      trace_id: traceId,
+    });
   } catch (err) {
     captureExternalError("translate", err, { sessionId });
     res.status(502).json({ ok: false, fallback: FALLBACK });

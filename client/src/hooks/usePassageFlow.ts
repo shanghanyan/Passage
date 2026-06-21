@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SYNTHETIC_DOCS } from "../data/synthetic-docs";
 import { detectPiiWithStatus } from "../lib/detect";
 import { mergeSpans } from "../lib/merge-spans";
@@ -29,6 +29,7 @@ export interface RelatedDocumentItem {
 
 import { persistLangCode, readPersistedLangCode } from "../i18n/locale-storage";
 import { t, uiLocaleFromLangCode } from "../i18n/strings";
+import { combineTranslationSections, extractExplanationText, extractTranslationText } from "../lib/explanation-text";
 import { findExactOccurrences } from "../lib/manual-match";
 
 export function usePassageFlow() {
@@ -48,6 +49,7 @@ export function usePassageFlow() {
   const [detecting, setDetecting] = useState(false);
   const [showSentPanel, setShowSentPanel] = useState(false);
   const [translatedTokens, setTranslatedTokens] = useState("");
+  const [explanationText, setExplanationText] = useState("");
   const [translationReady, setTranslationReady] = useState(false);
   const [fallback, setFallback] = useState<string | null>(null);
   const [validationFailure, setValidationFailure] = useState<ValidationFailureDetails | null>(null);
@@ -64,6 +66,9 @@ export function usePassageFlow() {
   const [relatedDocuments, setRelatedDocuments] = useState<RelatedDocumentItem[]>([]);
   const [relatedDocsLoading, setRelatedDocsLoading] = useState(false);
   const [relatedDocsError, setRelatedDocsError] = useState<string | null>(null);
+  /** Auto-detected spans only — kept separate so manual marks can re-redact without re-running NER. */
+  const autoDetectedSpansRef = useRef<DetectedSpan[]>([]);
+  const langAtTranslateRef = useRef<string | null>(null);
 
   const selectedDoc = SYNTHETIC_DOCS.find((d) => d.id === selectedDocId);
   const targetLanguage = languageNameFromCode(langCode);
@@ -76,6 +81,7 @@ export function usePassageFlow() {
 
   const resetOutput = useCallback(() => {
     setTranslatedTokens("");
+    setExplanationText("");
     setTranslationReady(false);
     setFallback(null);
     setValidationFailure(null);
@@ -133,6 +139,7 @@ export function usePassageFlow() {
     setActiveTab("translation");
     setRedaction(null);
     setDetectedSpans([]);
+    autoDetectedSpansRef.current = [];
     setDetectionWarning(null);
     setNerNote(null);
     setManualSpans([]);
@@ -155,6 +162,18 @@ export function usePassageFlow() {
       setConnectionLostMessage(t(uiLocale, "connection.stillDown"));
     }
   }, [showToast, uiLocale]);
+
+  useEffect(() => {
+    if (!langAtTranslateRef.current || langAtTranslateRef.current === langCode) return;
+    if (!translationReady && phase !== "translating" && phase !== "done") return;
+    langAtTranslateRef.current = null;
+    resetOutput();
+    if (phase === "done" || phase === "translating") {
+      setPhase("preview");
+      setActiveTab("translation");
+    }
+    showToast(t(uiLocale, "translation.languageChanged"));
+  }, [langCode, translationReady, phase, resetOutput, showToast, uiLocale]);
 
   const mergeVoiceRedaction = useCallback(
     (newTokens: Record<string, string>, newTokenMeta: Record<string, TokenMeta>) => {
@@ -180,6 +199,7 @@ export function usePassageFlow() {
       setShowTool(true);
       setRedaction(null);
       setDetectedSpans([]);
+      autoDetectedSpansRef.current = [];
       setPhase("input");
       setDetectionWarning(null);
       setNerNote(null);
@@ -199,39 +219,63 @@ export function usePassageFlow() {
     setActiveTab("privacy");
   }, [resetOutput]);
 
-  const addManualSpan = useCallback((span: DetectedSpan, propagateMatches = false) => {
-    setManualSpans((prev) => {
-      const next = [...prev];
-      const seen = new Set(prev.map((s) => `${s.start}:${s.end}:${s.type}`));
+  const commitRedaction = useCallback(
+    (autoSpans: DetectedSpan[], manual: DetectedSpan[]) => {
+      if (!rawText.trim()) return null;
+      const merged = mergeSpans([...autoSpans, ...manual]);
+      const result = redact(rawText, merged);
+      setDetectedSpans(merged);
+      setRedaction(result);
+      return result;
+    },
+    [rawText],
+  );
 
-      const pushSpan = (candidate: DetectedSpan) => {
-        const key = `${candidate.start}:${candidate.end}:${candidate.type}`;
-        if (seen.has(key)) return;
-        seen.add(key);
-        next.push(candidate);
-      };
+  const addManualSpan = useCallback(
+    (span: DetectedSpan, propagateMatches = false) => {
+      setManualSpans((prev) => {
+        const next = [...prev];
+        const seen = new Set(prev.map((s) => `${s.start}:${s.end}:${s.type}`));
 
-      pushSpan(span);
+        const pushSpan = (candidate: DetectedSpan) => {
+          const key = `${candidate.start}:${candidate.end}:${candidate.type}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          next.push(candidate);
+        };
 
-      if (propagateMatches) {
-        for (const occ of findExactOccurrences(rawText, span.value)) {
-          if (occ.start === span.start && occ.end === span.end) continue;
-          pushSpan({
-            ...span,
-            start: occ.start,
-            end: occ.end,
-            value: rawText.slice(occ.start, occ.end),
-          });
+        pushSpan(span);
+
+        if (propagateMatches) {
+          for (const occ of findExactOccurrences(rawText, span.value)) {
+            if (occ.start === span.start && occ.end === span.end) continue;
+            pushSpan({
+              ...span,
+              start: occ.start,
+              end: occ.end,
+              value: rawText.slice(occ.start, occ.end),
+            });
+          }
         }
-      }
 
-      return next.length === prev.length ? prev : next;
-    });
-  }, [rawText]);
+        if (next.length === prev.length) return prev;
+        commitRedaction(autoDetectedSpansRef.current, next);
+        return next;
+      });
+    },
+    [commitRedaction, rawText],
+  );
 
-  const removeManualSpan = useCallback((index: number) => {
-    setManualSpans((prev) => prev.filter((_, i) => i !== index));
-  }, []);
+  const removeManualSpan = useCallback(
+    (index: number) => {
+      setManualSpans((prev) => {
+        const next = prev.filter((_, i) => i !== index);
+        commitRedaction(autoDetectedSpansRef.current, next);
+        return next;
+      });
+    },
+    [commitRedaction],
+  );
 
   const ingestDocumentText = useCallback(
     async (text: string, _source: "paste" | "txt" | "pdf" | "image") => {
@@ -239,6 +283,7 @@ export function usePassageFlow() {
       setRawText(text);
       setRedaction(null);
       setDetectedSpans([]);
+      autoDetectedSpansRef.current = [];
       setPhase("input");
       setDetectionWarning(null);
       setNerNote(null);
@@ -250,6 +295,7 @@ export function usePassageFlow() {
       setDetecting(true);
       try {
         const { spans: autoSpans, nerError } = await detectPiiWithStatus(text);
+        autoDetectedSpansRef.current = autoSpans;
         const spans = mergeSpans(autoSpans);
         setDetectedSpans(spans);
         if (nerError) setNerNote(nerError);
@@ -285,11 +331,12 @@ export function usePassageFlow() {
 
     try {
       const { spans: autoSpans, nerError } = await detectPiiWithStatus(rawText);
-      const spans = mergeSpans([...autoSpans, ...manualSpans]);
-      setDetectedSpans(spans);
+      autoDetectedSpansRef.current = autoSpans;
+      const merged = mergeSpans([...autoSpans, ...manualSpans]);
+      setDetectedSpans(merged);
       if (nerError) setNerNote(nerError);
 
-      const result = redact(rawText, spans);
+      const result = redact(rawText, merged);
       const newSessionId = crypto.randomUUID();
       setRedaction(result);
       setSessionId(newSessionId);
@@ -303,8 +350,8 @@ export function usePassageFlow() {
       }
 
       if (selectedDoc?.labeledSpans.length) {
-        const recall = computeRecall(spans, selectedDoc.labeledSpans);
-        const recallByType = computeRecallByType(spans, selectedDoc.labeledSpans);
+        const recall = computeRecall(merged, selectedDoc.labeledSpans);
+        const recallByType = computeRecallByType(merged, selectedDoc.labeledSpans);
         setLastRecall(recall);
         if (shouldAlertRecall(recall, recallByType)) {
           Sentry.captureMessage("Redaction recall below threshold", {
@@ -317,7 +364,7 @@ export function usePassageFlow() {
           sessionId: newSessionId,
           recall,
           recallByType,
-          detectedCount: spans.length,
+          detectedCount: merged.length,
           labeledCount: selectedDoc.labeledSpans.length,
         }).catch((err) => console.warn("Phoenix score report failed:", err));
       } else {
@@ -340,7 +387,10 @@ export function usePassageFlow() {
     setError(null);
     resetOutput();
 
-    const leaks = scanForLeakage(redaction.redacted);
+    const freshRedaction =
+      commitRedaction(autoDetectedSpansRef.current, manualSpans) ?? redaction;
+
+    const leaks = scanForLeakage(freshRedaction.redacted);
     if (leaks.length > 0) {
       Sentry.captureMessage("Pre-send PII leakage blocked", {
         level: "error",
@@ -363,7 +413,7 @@ export function usePassageFlow() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          redacted_text: redaction.redacted,
+          redacted_text: freshRedaction.redacted,
           target_language: targetLanguage,
           session_id: sessionId,
           planted_validation_failure: selectedDoc?.plantedValidationFailure ?? false,
@@ -377,7 +427,20 @@ export function usePassageFlow() {
         return;
       }
 
-      const validation = validateTranslationOutput(data.translated_text, redaction.tokenMap, sessionId);
+      const hasSplitFields = Boolean(data.explanation_text?.trim());
+      const translationBody = hasSplitFields
+        ? data.translated_text.trim()
+        : extractTranslationText(data.translated_text);
+      const explanationBody = hasSplitFields
+        ? data.explanation_text!.trim()
+        : extractExplanationText(data.translated_text);
+
+      const fullForValidation =
+        explanationBody.length > 0
+          ? combineTranslationSections(translationBody, explanationBody)
+          : translationBody;
+
+      const validation = validateTranslationOutput(fullForValidation, freshRedaction.tokenMap, sessionId);
 
       if (!validation.ok) {
         setFallback(validation.fallback);
@@ -390,12 +453,14 @@ export function usePassageFlow() {
         return;
       }
 
-      setTranslatedTokens(validation.text);
+      setTranslatedTokens(translationBody);
+      setExplanationText(explanationBody);
       setTranslationReady(true);
       setPhase("done");
       setActiveTab("translation");
+      langAtTranslateRef.current = langCode;
       showToast("Translation complete");
-      void prefetchRelatedDocuments(redaction.redacted, sessionId, targetLanguage);
+      void prefetchRelatedDocuments(freshRedaction.redacted, sessionId, targetLanguage);
     } catch (err) {
       if (err instanceof ConnectionLostError) {
         setConnectionLost(true);
@@ -407,7 +472,7 @@ export function usePassageFlow() {
       setError(err instanceof Error ? err.message : "Translation failed");
       setPhase("preview");
     }
-  }, [redaction, sessionId, targetLanguage, selectedDoc, resetOutput, showToast, detectionWarning, phase, prefetchRelatedDocuments]);
+  }, [redaction, sessionId, targetLanguage, selectedDoc, resetOutput, showToast, detectionWarning, phase, prefetchRelatedDocuments, commitRedaction, manualSpans, langCode]);
 
   return {
     activeTab,
@@ -428,6 +493,7 @@ export function usePassageFlow() {
     showSentPanel,
     setShowSentPanel,
     translatedTokens,
+    explanationText,
     translationReady,
     fallback,
     validationFailure,

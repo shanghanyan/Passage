@@ -68,18 +68,19 @@ async function testRedisSessionMarker(creds: {
 async function testTranslateRoundTrip() {
   const sample =
     "Beneficiary ⟦PII:NAME:1⟧ with A-number ⟦PII:A_NUMBER:1⟧ must respond by April 30, 2024.";
-  const { text } = await translateRedactedText(sample, "Spanish");
-  const validation = validateTokenPreservation(sample, text, "test-session");
+  const { formatted, translation } = await translateRedactedText(sample, "Spanish");
+  const validation = validateTokenPreservation(sample, formatted, "test-session");
   assert(validation.ok, `Token preservation failed: expected validation ok, got ${JSON.stringify(validation)}`);
-  assert(text.includes("⟦PII:NAME:1⟧"), "NAME token preserved");
-  assert(text.includes("⟦PII:A_NUMBER:1⟧"), "A_NUMBER token preserved");
+  assert(formatted.includes("⟦PII:NAME:1⟧"), "NAME token preserved");
+  assert(formatted.includes("⟦PII:A_NUMBER:1⟧"), "A_NUMBER token preserved");
+  assert(translation.length > 0, "translation body returned");
   console.log("✓ Phase 3: Claude translate preserves tokens (Spanish)");
 }
 
 async function testTranslateSecondLanguage() {
   const sample = "Notice for ⟦PII:NAME:1⟧ regarding evidence at ⟦PII:ADDRESS:1⟧.";
-  const { text } = await translateRedactedText(sample, "Vietnamese");
-  const validation = validateTokenPreservation(sample, text, "test-session-vi");
+  const { formatted } = await translateRedactedText(sample, "Vietnamese");
+  const validation = validateTokenPreservation(sample, formatted, "test-session-vi");
   assert(validation.ok, "Vietnamese token preservation");
   console.log("✓ Phase 3: Claude translate preserves tokens (Vietnamese)");
 }

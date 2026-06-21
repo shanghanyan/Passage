@@ -98,6 +98,7 @@ export type StringKey =
   | "loading.scanning.title"
   | "loading.scanning.subtitle"
   | "loading.translating.title"
+  | "translation.languageChanged"
   | "loading.translating.subtitle"
   | "pii.NAME"
   | "pii.A_NUMBER"
