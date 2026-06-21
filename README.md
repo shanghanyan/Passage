@@ -2,9 +2,13 @@
 
 **UC Berkeley AI Hackathon 2026 — World Track**
 
-Paste an immigration letter, get it translated and explained in your language, ask follow-up questions by voice — while detected PII is tokenized **before anything reaches Claude**. Output validation **fails closed**; detection is **best-effort** (regex + on-device NER) with per-type recall metrics you can verify in devtools.
+Passage helps immigrants understand confusing official letters — like a notice to appear in immigration court — written in English. You paste or upload the letter and it translates and explains it in plain language in your own language (11 supported), and you can ask follow-up questions by voice.
 
-The differentiator isn't "we use Claude to translate." It's an **inspectable privacy boundary**: tokenize what we detect (recall-first — we over-redact when uncertain), validate Claude output, measure recall by PII type — plus a **date/deadline back-translation check** that catches the highest-frequency catastrophic translation error.
+The key idea: before anything is sent to the AI, your personal details (name, address, ID numbers) are stripped out and replaced with placeholders inside your browser, so the sensitive data never leaves your device — and you can watch in the browser's developer tools that only the placeholders get sent. It also double-checks that critical dates and deadlines survive translation correctly, since a missed deadline can sink an immigration case, and it's honest about what it can't guarantee.
+
+**Technical (brief):** A monorepo with four packages — client (React 19 + TypeScript + Vite 6 SPA), server (Express 4 + TypeScript), shared (`@passage/shared`: sentry-scrub + explanation-text, single source to prevent drift), and a launcher (`launch.mjs` / macOS `.app`). The client runs the whole privacy pipeline in-browser: PDF/image extraction (pdf.js + Tesseract.js), PII detection (regex + Xenova/bert-base-NER via Transformers.js, recall-first at score ≥ 0.35 plus Unicode label-line names), tokenization to `⟦PII:TYPE:n⟧`, an explicit send gate, and fail-closed post-Claude validation — all orchestrated by a `usePassageFlow` phase machine (input → preview → translating → done | blocked). The server is intentionally thin (prompt + API call per feature): Claude Sonnet 4.6 for translation plus a back-translation verify pass for dates/deadlines, Deepgram for voice, Upstash + optional Redis Cloud for session/memory/cache, OpenTelemetry/OpenInference exporting to Phoenix or Arize AX, and Sentry on both ends. The thesis is that the sophistication lives in the privacy architecture and verification harness — Playwright network audits asserting no raw PII in request bodies, per-type recall metrics, fail-closed validation — not in model orchestration: **the innovation is what you don't send**.
+
+For architecture, data flow, and file reference, see [`PROJECT_ARCHITECTURE.md`](PROJECT_ARCHITECTURE.md).
 
 ---
 
@@ -125,139 +129,49 @@ Create both services at [cloud.redis.io](https://cloud.redis.io) when you want m
 
 ---
 
-## Architecture
-
-```mermaid
-flowchart TB
-  subgraph browser [Browser]
-    Extract[PDF/image extract · pdf.js + Tesseract]
-    Detect[Detect + Redact]
-    Gate[Send gate]
-    Validate[Fail-closed validation]
-  end
-
-  subgraph upstash [Upstash Redis]
-    Session["session marker · rate limits · launcher heartbeat"]
-  end
-
-  subgraph redisCloud [Redis Cloud optional]
-    AM[Agent Memory · redacted Q&A]
-    LC[LangCache · redacted FAQ]
-  end
-
-  subgraph server [Passage Server]
-    Mint["/api/redaction-session-token"]
-    Translate["/api/translate · back-translate verify"]
-    VQ["/api/voice/question"]
-    OTEL["OTEL → Phoenix or Arize AX"]
-  end
-
-  Extract --> Detect --> Gate
-  Gate --> Mint --> Session
-  Gate --> Translate --> Claude[Claude API]
-  Translate --> Validate
-  VQ --> LC --> AM --> Claude
-  VQ --> Claude
-  server --> OTEL
-```
-
-**Boundary model:** detection is **best-effort** (fail-open); everything after send is **fail-closed** (tokens, leaks, meaning drift).
-
-**Redis roles:**
-
-1. **Upstash** (required) — scoped session markers, launcher heartbeat, per-session rate limits
-2. **Agent Memory** (optional) — tokenized voice conversation history
-3. **LangCache** (optional) — semantic cache for voice FAQ; hit rate + similarity in API response
-
----
-
-## Hackathon sponsor integrations
+## Sponsor integrations
 
 ### Anthropic (Claude)
 
-**Model:** `claude-sonnet-4-6` via `@anthropic-ai/sdk`.
+**Plain:** Does the actual translating and plain-language explaining of the letter, and answers spoken follow-ups — but only ever sees a version with personal details swapped out for placeholders.
 
-| Use | Endpoint / location | What goes to Claude |
-|---|---|---|
-| **Translation + explanation** | `POST /api/translate` → `server/src/lib/claude.ts` | Redacted text with `⟦PII:TYPE:n⟧` tokens only |
-| **Date/deadline back-translate** | Same route (automatic) | Second pass — checks dates and "within N days" survive round-trip; **not** general correctness |
-| **Voice Q&A** | `POST /api/voice/question` | Redacted document context + redacted question (transcript scrubbed in browser first) |
-| **Related documents** | `POST /api/related-documents` | Redacted text + `target_language` (informational one-shot) |
-
-**Claude features:** structured tool output, immigration glossary, prompt caching. Backend is intentionally thin (prompt + API call per feature) — **the sophistication is the privacy architecture**, not model orchestration.
+**Technical:** `claude-sonnet-4-6` via `@anthropic-ai/sdk`. Powers `/api/translate` (structured tool output + immigration glossary + prompt caching), a second back-translation pass for date/deadline verification, `/api/voice/question`, and `/api/related-documents`. Receives only `⟦PII:TYPE:n⟧` tokens. Backend is deliberately thin — prompt + API call per feature.
 
 ### Redis
 
-Three distinct Redis surfaces — all **PII-free by design**:
+**Plain:** Keeps the app running smoothly — remembers your session, blocks abuse, shuts down when you close the tab, and optionally remembers your voice conversation and caches repeated questions. Never stores personal info.
 
-| Provider | Required? | Role |
-|---|---|---|
-| **Upstash** (`UPSTASH_REDIS_REST_*`) | **Yes** | Scoped session markers; **launcher heartbeat** (replaces in-memory store); **per-session rate limits** on translate/voice/extract |
-| **Redis Cloud Agent Memory** (`AGENT_MEMORY_*`) | Optional | Multi-turn voice Q&A history — redacted user/assistant turns only (`server/src/lib/agent-memory.ts`). Safety asserts block raw PII before persist. |
-| **Redis Cloud LangCache** (`LANGCACHE_*`) | Optional | Semantic cache for paraphrased voice FAQ on the same redacted doc (`server/src/lib/lang-cache.ts`). Responses include hit rate + similarity in API. |
-
-Voice Q&A checks LangCache → Agent Memory → Claude in that order when configured (`server/src/routes/voice-question.ts`).
+**Technical:** Three surfaces, all PII-free by design. **Upstash** (required): scoped session markers, per-session rate limits on translate/voice/extract, and launcher heartbeat (replaces an in-memory map). **Redis Cloud Agent Memory** (optional): tokenized multi-turn voice history with safety asserts before persist. **Redis Cloud LangCache** (optional): semantic cache for paraphrased voice FAQ, returns hit rate + similarity.
 
 ### Sentry
 
-**Server (required):** `SENTRY_DSN` → `@sentry/node` in `server/src/lib/sentry.ts`. Captures Claude, Deepgram, and API failures via `captureExternalError`.
+**Plain:** Watches for errors and raises an alarm — including when the system catches itself leaking or mistranslating, or when name-detection accuracy drops.
 
-**Browser (optional):** `VITE_SENTRY_CLIENT_DSN` → `@sentry/react` in `client/src/lib/sentry.ts`.
-
-Shared `sentry-scrub.ts` lives in `shared/` (`@passage/shared`). Typical events: validation mismatches, leakage blocks, **date/deadline drift** blocks, recall-drop alerts, API failures.
+**Technical:** `@sentry/node` (server, required) + `@sentry/react` (browser, optional). Captures validation mismatches, leakage blocks, date/deadline-drift blocks, recall-drop alerts (incl. a NAME-specific one), and Claude/Deepgram/API failures. Scrubbed via `@passage/shared/sentry-scrub` — events carry token keys only, never raw PII.
 
 ### Arize AX (observability)
 
-**Cloud export:** `OBSERVABILITY_TARGET=ax` or `npm run launch -- --cloud` → OTLP traces to Arize AX (`server/src/lib/observability/ax.ts`). Requires `ARIZE_SPACE_ID` + `ARIZE_API_KEY`.
+**Plain:** A dashboard that measures how well the privacy detection actually works — including how often it misses names — so the weakness is tracked openly instead of hidden.
 
-**What gets traced:**
-
-- **Auto-instrumented Claude calls** — `@arizeai/openinference-instrumentation-anthropic` wraps the Anthropic SDK (translate, voice, related docs).
-- **Custom `redaction-check` spans** — aggregate recall **and per-type recall** (`redaction.recall.name`, etc.), doc ID, session ID, run ID, detector type (`server/src/lib/score-redaction.ts`)
-- **Eval dataset export** — `npm run export:eval-dataset --prefix server` → `server/eval-dataset.jsonl` for Arize AX Datasets
-
-**Local dev alternative:** **Phoenix** (same OpenInference stack, `@arizeai/phoenix-otel`) runs in Docker via `docker-compose.phoenix.yml` — default when launching without `--cloud`. Traces land at `http://localhost:6006`. Phoenix is not a separate integration; it is the local export target for the same OTEL pipeline.
-
-Filter either UI by span name **`redaction-check`** or attribute **`redaction.run_id`**.
+**Technical:** OpenTelemetry + OpenInference. Auto-instruments Claude calls via `@arizeai/openinference-instrumentation-anthropic`. Custom redaction-check spans carry aggregate + per-type recall (`redaction.recall.name`, etc.) plus doc/session/run IDs; eval-dataset export to Arize AX Datasets. Local alternative is Phoenix on the same OTEL pipeline (Docker), chosen at launch.
 
 ### Deepgram (voice)
 
-**STT:** Nova-3 in the document target language. **The text path and audio path are not equivalent:** pasted/uploaded text is redacted before any third party; **spoken audio reaches Deepgram as raw audio** (including spoken PII) before client-side transcript redaction. Defense-in-depth: `redact=pii,numbers`, keyword boosting, mic disclaimer — but the structural exposure remains.
+**Plain:** Lets you ask follow-ups out loud and hear the explanation read back. Honest caveat the team volunteers: spoken audio reaches Deepgram before redaction — the one spot where the privacy boundary is weaker.
 
-Browser uses a short-lived grant from `POST /api/deepgram-token` when the API key allows it; otherwise audio is proxied through `POST /api/voice/transcribe`.
-
-**TTS:** Aura-2 speaks **tokenized explanation text only** (explanation section extracted server-side; PII safety assert before synthesis). Endpoints: `POST /api/voice/speak` and TTS text returned from voice Q&A.
-
-Mic disclaimer in UI: users should type ID numbers rather than speak them — STT redaction has known gaps (`client/scripts/verify-voice-redaction.mjs`).
+**Technical:** Nova-3 STT in the document's target language (`redact=pii,numbers` + keyword boosting); Aura-2 TTS speaking explanation-only tokenized text (PII safety assert before synthesis). Short-lived grant via `/api/deepgram-token`, or server-proxy via `/api/voice/transcribe`. Structural exposure: raw audio hits Deepgram before client-side transcript redaction.
 
 ---
 
 ## What Passage does
 
-**Input:** Paste text, upload a **`.txt`** file (stays in-browser), or upload **`.pdf` / image** (**extracted in-browser** via pdf.js + Tesseract.js; server fallback only if client extraction fails). Synthetic demo documents are available for testing.
+**Input:** Paste text, upload a **`.txt`** file (stays in-browser), or upload **`.pdf` / image** (extracted in-browser via pdf.js + Tesseract.js; server fallback only if client extraction fails). Synthetic demo documents are available for testing.
 
 **Output:** Plain-language translation + explanation in **11 languages** (English, Spanish, French, Chinese, Vietnamese, Korean, Portuguese, Arabic, Hindi, Tagalog, Ukrainian). UI shows **tokenized** text by default; raw values can be reinserted client-side from in-memory `tokenMap` for readability without changing Claude payloads (not enabled in demo UI). Voice follow-up questions; optional listen-back via TTS — all tokenized to external APIs. **Related documents** tab lists commonly associated immigration document types (redacted input only).
 
 **UI language:** Choose translation language on the **landing screen** before pasting. Site chrome, redaction review, tab labels, voice buttons, and TTS fallback warnings all follow that choice (11 locale packs under `client/src/i18n/`). Your choice is saved in `localStorage` so the connection-lost screen stays in the same language.
 
 **Scope line:** Explains what a section is *asking for*. Does **not** tell anyone what to write in response.
-
----
-
-## Privacy architecture
-
-| Layer | Behavior |
-|---|---|
-| **Detection (input)** | **Recall-first** — NER kept at score ≥ 0.35; label-line names include non-Latin scripts; undetected PII still passes |
-| **Detection ceiling** | Measuring NAME recall does not fix misses — e.g. 0.6 recall ⇒ ~40% of names may reach Claude |
-| **Pre-send scan** | Re-checks known pattern classes only |
-| **In-browser extraction** | PDF/image via pdf.js + Tesseract.js (server fallback rate-limited) |
-| **Explicit send gate** | Nothing hits the network until **Send for translation** |
-| **Claude payload** | Tokens only (for detected spans) |
-| **Post-Claude validation** | Token check + raw-leak scan — **fail closed** |
-| **Back-translation verify** | **Dates + day-count deadlines only** — fail closed if missing; wrong clause attachment not caught |
-| **Voice STT** | Raw audio → Deepgram **before** redaction; transcript redacted before Claude |
-| **Per-type recall** | OTEL + Sentry when recall or NAME recall &lt; `RECALL_ALERT_THRESHOLD` |
 
 ---
 
@@ -271,48 +185,6 @@ Volunteer these in a judged room — credibility beats polish.
 | **Raw audio to Deepgram** | Spoken PII hits a third party before redaction; mic disclaimer relies on user compliance |
 | **Server extract fallback** | If client-side pdf.js/Tesseract fails, raw file bytes hit the server (rate-limited) |
 | **Translation correctness** | Date/deadline back-translate catches one failure mode; it does not verify that form fields or legal meaning are correct |
-
-**Thesis:** the innovation is **what you don't send**, not what the model does. Backend = prompt + API call; privacy architecture + verification harness = the sophistication.
-
----
-
-## Features built
-
-### Detection & redaction
-- **Recall-first policy** — NER threshold 0.35; label-line capture for non-Latin names; prefer over-redaction to leaking names
-- 9 synthetic docs (7 hand-labeled + 2 planted failures)
-- Privacy tab: per-type counts, confidence, token highlights, expandable Claude payload
-- Optional manual redact with **match-all**; per-type recall → observability
-
-### Translation
-- Structured tool output, immigration glossary, prompt caching
-- **Date/deadline back-translation** — fail-closed if dates or "within N days" vanish (not general QA)
-- Fail-closed blocked state (tokens, leaks, or date/deadline check)
-
-### Related documents
-- After translation, **prefetches** associated document types in the background (no wait for TTS)
-- Claude identifies the immigration process + 5–8 commonly linked document types from **redacted text only**
-- Responses localized via `target_language` (matches UI / translation picker)
-
-### Voice
-- **Text path ≠ audio path** — see [What we don't claim](#what-we-dont-claim)
-- Deepgram Nova-3 STT (all 11 languages); client-side transcript redaction before Claude
-- LangCache hit rate + similarity; explanation-only TTS (native Aura-2 for es/fr/pt; English fallback for others)
-- Mic disclaimer: type ID numbers, don't speak them (localized)
-
-### Observability (Phoenix + Arize AX)
-- Dual-target export — choose at launch
-- Auto-instrumented Claude traces
-- Custom `redaction-check` spans — aggregate + **per-type recall** (metrics only, no raw PII)
-- Batch + live browser scoring; eval dataset export for Arize Datasets
-
-### Error monitoring (Sentry)
-- Validation mismatches, leakage blocks, **translation meaning failures**, **recall-drop alerts**
-- Claude/Deepgram/voice failures; planted demo doc for live dashboard beat
-
-### Resilience
-- Server health ping every 5s; **connection-lost** screen (localized, retry only)
-- Launcher heartbeat in **Upstash Redis** — stops server/client when browser tab closes
 
 ---
 
@@ -347,45 +219,11 @@ Filter observability UI by span name **`redaction-check`** or attribute **`redac
 
 Failures logged in [`08-error-log.md`](08-error-log.md).
 
-See [`PROJECT_ARCHITECTURE.md`](PROJECT_ARCHITECTURE.md) for the full file reference, data-flow diagrams, and technical assessment.
-
----
-
-## Vanisha merge note
-
-Verification tooling and detection audit cases from the teammate fork are integrated into this repo. The separate `Vanisha project/` copy was removed after porting.
-
 ---
 
 ## Demo script
 
 See [`09-demo-script.md`](09-demo-script.md) for the timed 5-minute rehearsal (two distinct failure beats: detection gap vs validation mismatch).
-
----
-
-## Project structure
-
-```
-launch.mjs / Launch Passage.app     — launcher + observability picker + auto-shutdown
-scripts/fix-launch-app.sh           — macOS Gatekeeper fix
-
-/shared/                            — @passage/shared (sentry-scrub, explanation-text)
-/client/
-  src/lib/                          — detection, redaction, validate, voice, extract-document
-  src/hooks/usePassageFlow.ts       — phase state machine
-  src/ui/                           — landing, redaction, results tabs
-  src/i18n/                         — 11 locale packs
-/server/
-  src/lib/claude.ts                 — structured translate + back-translation verify
-  src/lib/translation-verify.ts     — date/deadline diff
-  src/lib/immigration-glossary.ts   — USCIS/EOIR terms
-  src/lib/session-store.ts          — Redis heartbeat + rate limits
-  src/lib/deepgram-keywords.ts      — STT redact + keyword boost
-  src/lib/document-extract.ts       — server fallback PDF/OCR only
-  src/lib/observability/            — Phoenix + Arize AX
-docker-compose.phoenix.yml
-PROJECT_ARCHITECTURE.md             — full file reference
-```
 
 ---
 
