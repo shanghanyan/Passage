@@ -8,28 +8,9 @@ The differentiator isn't "we use Claude to translate." It's that **redaction is 
 
 ---
 
-## Quick start (no terminal required on macOS)
+## Configure secrets (required before first launch)
 
-**Double-click `Launch Passage.app`** in the repo root. A dialog asks:
-
-- **Local Phoenix** — starts Docker Phoenix, exports traces to `http://localhost:6006`
-- **Arize AX Cloud** — sends traces to your Arize AX dashboard (requires keys in `server/.env`)
-
-The app installs dependencies if needed, starts server + client, and opens **http://localhost:5173**.
-
-Logs: `.passage-launch.log` in the repo root.
-
-**From terminal (any OS):**
-
-```bash
-npm run install:all    # once
-node launch.mjs        # same dialog on macOS; defaults to Phoenix elsewhere
-# or: node launch.mjs --local   /   node launch.mjs --cloud
-```
-
----
-
-## Configure secrets
+The server refuses to start without working Redis and Claude credentials.
 
 ```bash
 cp server/.env.example server/.env
@@ -43,6 +24,7 @@ cp client/.env.local.example client/.env.local   # optional — browser Sentry
 | `ANTHROPIC_API_KEY` | Claude translation + voice Q&A |
 | `UPSTASH_REDIS_REST_URL` | Ephemeral token-map storage (browser writes directly) |
 | `UPSTASH_REDIS_REST_TOKEN` | Scoped credentials for Redis REST |
+| `REDIS_URL` | Alternative to Upstash REST — TCP `rediss://` URL from Upstash Connect tab |
 | `SENTRY_DSN` | Server error monitoring |
 | `DEEPGRAM_API_KEY` | Voice transcription + TTS |
 
@@ -68,6 +50,8 @@ ARIZE_PROJECT_NAME=immigration-redaction-demo
 
 Both modes use the same OpenTelemetry + OpenInference stack — Claude traces and `redaction-check` recall spans work identically; only the export destination changes.
 
+**Launcher vs `.env`:** `Launch Passage.app` / `launch.mjs` asks which backend to use (macOS dialog) or accepts `--local` / `--cloud`. That choice is passed to the server for that session and **overrides** `OBSERVABILITY_TARGET` in `.env`. For `npm run dev` without the launcher, `.env` controls the target.
+
 ### Redis Agent (optional — voice memory + FAQ cache)
 
 Create both services at [cloud.redis.io](https://cloud.redis.io) (free tier):
@@ -88,6 +72,42 @@ If unset, voice still works — just without conversation memory or cache hits.
 | Variable | Purpose |
 |---|---|
 | `VITE_SENTRY_CLIENT_DSN` | Public browser Sentry DSN (optional) |
+
+---
+
+## Launch Passage
+
+### macOS (no terminal)
+
+1. Complete [Configure secrets](#configure-secrets-required-before-first-launch) above.
+2. Double-click **`Launch Passage.app`** in the repo root.
+3. Choose observability in the dialog:
+   - **Local Phoenix** — starts Docker Desktop if needed, runs Phoenix, exports traces to `http://localhost:6006`
+   - **Arize AX Cloud** — sends traces to [app.arize.com](https://app.arize.com) (requires `ARIZE_SPACE_ID` + `ARIZE_API_KEY` in `server/.env`)
+4. Wait for the browser to open at **http://localhost:5173** (API server: **http://localhost:3001**).
+
+When you quit (Ctrl+C in Terminal, or close the launcher window), the app stops server + client, tears down the Phoenix container, and quits Docker Desktop **only if the launcher started Docker for you**. If Docker was already running, it stays open.
+
+**Logs:** `.passage-launch.log` in the repo root. The `.app` launcher runs quietly in Terminal — check this file if something fails silently.
+
+**Docker lifecycle (Local Phoenix):** Docker Desktop can be fully off before launch. The launcher turns it on, starts Phoenix, and cleans up on exit. You only need Docker Desktop *installed* — no manual `docker compose` before each session.
+
+### Terminal (any OS)
+
+```bash
+npm run install:all    # once (launcher also auto-installs if node_modules are missing)
+npm run launch         # same as node launch.mjs
+```
+
+Observability picker:
+
+| Command | Backend |
+|---|---|
+| `npm run launch` | macOS dialog; elsewhere defaults to Local Phoenix |
+| `npm run launch -- --local` | Local Phoenix (Docker) |
+| `npm run launch -- --cloud` | Arize AX Cloud |
+| `npm run launch -- --obs=phoenix` | Same as `--local` |
+| `npm run launch -- --obs=ax` | Same as `--cloud` |
 
 ---
 
@@ -163,7 +183,7 @@ flowchart TB
 ## Features built
 
 ### Detection & redaction
-- 9 hand-labeled synthetic docs + 2 planted demo docs (Sentry validation failure, pre-send leakage block)
+- 7 hand-labeled synthetic docs + 2 planted demo docs (Sentry validation failure, pre-send leakage block)
 - Privacy tab: per-type counts, span confidence, amber token highlights, expandable Claude payload
 - Per-doc recall score → observability backend
 
@@ -193,7 +213,9 @@ flowchart TB
 
 ## Verify it works
 
-Server must be running. For Phoenix mode, Docker must be up (launcher starts it automatically).
+Keep Passage running (via launcher or separate `npm run dev` in `server/` and `client/`). For Phoenix mode, use the launcher or run `docker compose -f docker-compose.phoenix.yml up -d` first.
+
+`test:phase5` and `test:phase6` call live HTTP endpoints — the server must already be listening on port **3001**.
 
 ```bash
 cd server
@@ -201,8 +223,8 @@ npm run test:phases      # redaction, Redis, Claude, validation + Sentry
 npm run test:phase5      # observability + recall scoring
 npm run test:phase6      # Deepgram voice + TTS safety
 
-npm run score:redaction              # batch recall
-npm run score:redaction -- run-after-fix   # second run — compare trend
+npm run score:redaction -- run-before-fix
+npm run score:redaction -- run-after-fix   # second run — compare trend in observability UI
 ```
 
 Filter observability UI by span name **`redaction-check`** or attribute **`redaction.run_id`**.
@@ -215,13 +237,14 @@ Failures logged in [`08-error-log.md`](08-error-log.md).
 
 ```
 launch.mjs / Launch Passage.app     — one-click launcher with observability picker
-/client                             — React + Vite (no secrets)
+/client
+  src/hooks/usePassageFlow.ts       — core flow state + actions
+  src/lib/                          — detection, redaction, voice, scoring
 /server
-  src/lib/observability/             — Phoenix + Arize AX dual export
-  src/lib/agent-memory.ts            — Redis Agent Memory REST client
-  src/lib/lang-cache.ts              — Redis LangCache REST client
-  src/hooks/usePassageFlow.ts        — core flow (in client)
-docker-compose.phoenix.yml            — local Phoenix container
+  src/lib/observability/            — Phoenix + Arize AX dual export
+  src/lib/agent-memory.ts           — Redis Agent Memory REST client
+  src/lib/lang-cache.ts             — Redis LangCache REST client
+docker-compose.phoenix.yml          — local Phoenix container
 ```
 
 ---
@@ -229,6 +252,7 @@ docker-compose.phoenix.yml            — local Phoenix container
 ## API surface
 
 ```
+GET  /api/health                    — startup probe (used by launcher)
 POST /api/redaction-session-token   scoped Upstash credentials (no PII)
 POST /api/translate                 redacted text → translated tokens
 POST /api/score-redaction           recall metrics → observability span

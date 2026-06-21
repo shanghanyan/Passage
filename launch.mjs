@@ -48,6 +48,13 @@ function pickObservabilityTarget() {
   return "phoenix";
 }
 
+function ensureEnvFile() {
+  const envPath = path.join(SERVER_DIR, ".env");
+  if (!fs.existsSync(envPath)) {
+    throw new Error("Missing server/.env — copy server/.env.example and fill in keys (see README).");
+  }
+}
+
 function ensureDeps() {
   for (const dir of [SERVER_DIR, CLIENT_DIR]) {
     if (!fs.existsSync(path.join(dir, "node_modules"))) {
@@ -57,15 +64,70 @@ function ensureDeps() {
   }
 }
 
-function startPhoenixDocker() {
+function dockerDaemonReady() {
+  try {
+    execSync("docker info", { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureDockerDaemon() {
+  if (dockerDaemonReady()) return { startedDockerDesktop: false };
+
+  if (process.platform === "darwin") {
+    log("Docker is off — starting Docker Desktop…");
+    execSync("open -a Docker", { stdio: "ignore" });
+
+    for (let i = 0; i < 90; i += 1) {
+      if (dockerDaemonReady()) {
+        log("Docker Desktop ready");
+        return { startedDockerDesktop: true };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    throw new Error("Docker Desktop did not become ready in time");
+  }
+
+  throw new Error("Docker is not running — start Docker and try again");
+}
+
+async function startPhoenixDocker() {
+  const { startedDockerDesktop } = await ensureDockerDaemon();
+
   try {
     execSync("docker compose -f docker-compose.phoenix.yml up -d", {
       cwd: ROOT,
       stdio: "inherit",
     });
     log("Phoenix Docker started → http://localhost:6006");
+    return { startedDockerDesktop, managePhoenix: true };
+  } catch (err) {
+    stopPhoenixDocker({ startedDockerDesktop });
+    throw err;
+  }
+}
+
+function stopPhoenixDocker({ startedDockerDesktop }) {
+  try {
+    execSync("docker compose -f docker-compose.phoenix.yml down", {
+      cwd: ROOT,
+      stdio: "ignore",
+    });
+    log("Phoenix Docker stopped");
   } catch {
-    log("Warning: could not start Phoenix Docker (is Docker running?)");
+    log("Warning: could not stop Phoenix Docker");
+  }
+
+  if (startedDockerDesktop && process.platform === "darwin") {
+    try {
+      execSync('osascript -e \'quit app "Docker"\'', { stdio: "ignore" });
+      log("Docker Desktop quit");
+    } catch {
+      log("Warning: could not quit Docker Desktop");
+    }
   }
 }
 
@@ -117,10 +179,12 @@ async function main() {
   const target = pickObservabilityTarget();
   log(`Observability target: ${target}`);
 
+  ensureEnvFile();
   ensureDeps();
 
+  let dockerState = { startedDockerDesktop: false, managePhoenix: false };
   if (target === "phoenix") {
-    startPhoenixDocker();
+    dockerState = await startPhoenixDocker();
   } else {
     log("Arize AX mode — traces go to https://app.arize.com (set ARIZE_SPACE_ID + ARIZE_API_KEY in server/.env)");
   }
@@ -144,15 +208,25 @@ async function main() {
     shell: true,
   });
 
+  let shuttingDown = false;
   const shutdown = () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+
     server.kill("SIGTERM");
     client.kill("SIGTERM");
+
+    if (dockerState.managePhoenix) {
+      stopPhoenixDocker({ startedDockerDesktop: dockerState.startedDockerDesktop });
+    }
+
     process.exit(0);
   };
 
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
+  await waitForUrl("http://localhost:3001/api/health", "Server");
   await waitForUrl("http://localhost:5173", "Client");
   openBrowser("http://localhost:5173");
 
