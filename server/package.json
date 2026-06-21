@@ -13,6 +13,7 @@
     "test:phase6": "tsx scripts/test-phase6.ts",
     "test:explanation-text": "tsx scripts/test-explanation-text.ts",
     "score:redaction": "tsx scripts/score-redaction-set.ts",
+    "export:eval-dataset": "tsx scripts/export-eval-dataset.mjs",
     "trigger:sentry-validation": "tsx scripts/trigger-sentry-validation.mjs",
     "audit:sentry-payload": "node scripts/audit-sentry-payload.mjs"
   },
@@ -25,6 +26,7 @@
     "@opentelemetry/resources": "^2.8.0",
     "@opentelemetry/sdk-trace-base": "^2.8.0",
     "@opentelemetry/sdk-trace-node": "^2.8.0",
+    "@passage/shared": "file:../shared",
     "@sentry/node": "^10.59.0",
     "@upstash/redis": "^1.34.3",
     "cors": "^2.8.5",

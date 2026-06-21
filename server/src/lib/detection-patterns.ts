@@ -105,3 +105,28 @@ export function computeRecall(detectedSpans: DetectedSpan[], labeledSpans: Label
 
   return matched / labeledSpans.length;
 }
+
+export function computeRecallByType(
+  detectedSpans: DetectedSpan[],
+  labeledSpans: LabeledSpan[],
+): Record<string, number> {
+  const types = [...new Set(labeledSpans.map((s) => s.type))];
+  const out: Record<string, number> = {};
+  const normalize = (s: string) => s.toLowerCase().trim();
+
+  for (const type of types) {
+    const truths = labeledSpans.filter((s) => s.type === type);
+    let matched = 0;
+    for (const truth of truths) {
+      const hit = detectedSpans.some((d) => {
+        if (d.type !== type) return false;
+        const dv = normalize(d.value);
+        const tv = normalize(truth.value);
+        return dv === tv || dv.includes(tv) || tv.includes(dv);
+      });
+      if (hit) matched++;
+    }
+    out[type] = matched / truths.length;
+  }
+  return out;
+}

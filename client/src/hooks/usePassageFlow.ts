@@ -8,7 +8,12 @@ import { scanForLeakage } from "../lib/patterns";
 import { redact } from "../lib/redact";
 import { mintRedactionSession, registerRedactionSession } from "../lib/redis";
 import { apiFetch, ConnectionLostError, pingServerHealth } from "../lib/api-fetch";
-import { computeRecall, reportRedactionScore } from "../lib/score-redaction";
+import {
+  computeRecall,
+  computeRecallByType,
+  reportRedactionScore,
+  shouldAlertRecall,
+} from "../lib/score-redaction";
 import { Sentry } from "../lib/sentry";
 import type { DetectedSpan, RedactionResult, TokenMeta, TranslateResponse, ValidationFailureDetails } from "../lib/types";
 import { validateTranslationOutput } from "../lib/validate";
@@ -299,11 +304,19 @@ export function usePassageFlow() {
 
       if (selectedDoc?.labeledSpans.length) {
         const recall = computeRecall(spans, selectedDoc.labeledSpans);
+        const recallByType = computeRecallByType(spans, selectedDoc.labeledSpans);
         setLastRecall(recall);
+        if (shouldAlertRecall(recall, recallByType)) {
+          Sentry.captureMessage("Redaction recall below threshold", {
+            level: "warning",
+            extra: { docId: selectedDoc.id, sessionId: newSessionId, recall, recallByType },
+          });
+        }
         void reportRedactionScore({
           docId: selectedDoc.id,
           sessionId: newSessionId,
           recall,
+          recallByType,
           detectedCount: spans.length,
           labeledCount: selectedDoc.labeledSpans.length,
         }).catch((err) => console.warn("Phoenix score report failed:", err));

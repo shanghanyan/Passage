@@ -5,10 +5,12 @@ import { assertTtsTextSafe } from "../lib/deepgram.js";
 import { extractExplanationText } from "../lib/explanation-text.js";
 import {
   buildVoiceCachePrompt,
+  getLangCacheStats,
   isLangCacheConfigured,
   searchVoiceCache,
   storeVoiceCache,
 } from "../lib/lang-cache.js";
+import { assertRateLimit, RateLimitError } from "../lib/session-store.js";
 import { captureExternalError } from "../lib/sentry.js";
 
 const FALLBACK = "We couldn't safely process this section — try again or review manually.";
@@ -30,15 +32,27 @@ export async function postVoiceQuestion(req: Request, res: Response): Promise<vo
   const question = transcript.trim();
 
   try {
+    await assertRateLimit(sessionId, "voice");
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      res.status(429).json({ ok: false, fallback: err.message });
+      return;
+    }
+    throw err;
+  }
+
+  try {
     const cachePrompt = buildVoiceCachePrompt(redacted_text, question);
     let answer: string;
     let fromCache = false;
+    let cacheSimilarity: number | null = null;
     let memoryTurns = 0;
 
     const cached = await searchVoiceCache(cachePrompt);
     if (cached) {
-      answer = cached;
+      answer = cached.response;
       fromCache = true;
+      cacheSimilarity = cached.similarity;
     } else {
       const priorTurns = await getVoiceSessionTurns(sessionId);
       memoryTurns = priorTurns.length;
@@ -66,11 +80,15 @@ export async function postVoiceQuestion(req: Request, res: Response): Promise<vo
       );
     }
 
+    const cacheStats = getLangCacheStats();
+
     res.json({
       ok: true,
       answer_text: answer,
       tts_text: ttsText,
       from_cache: fromCache,
+      cache_similarity: cacheSimilarity,
+      langcache_hit_rate: cacheStats.hitRate,
       memory_turns: memoryTurns,
       agent_memory: isAgentMemoryConfigured(),
       langcache: isLangCacheConfigured(),

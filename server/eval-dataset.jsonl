@@ -1,0 +1,9 @@
+{"id":"rfe-standard","title":"RFE — standard fields","labeled_count":6,"labeled_by_type":{"NAME":1,"A_NUMBER":1,"SSN":1,"DOB":1,"PASSPORT":1,"ADDRESS":1},"has_planted_failure":false}
+{"id":"biometrics-notice","title":"Biometrics appointment","labeled_count":4,"labeled_by_type":{"NAME":1,"A_NUMBER":1,"DOB":1,"ADDRESS":1},"has_planted_failure":false}
+{"id":"ead-renewal","title":"EAD renewal receipt","labeled_count":5,"labeled_by_type":{"NAME":1,"A_NUMBER":1,"SSN":1,"DOB":1,"ADDRESS":1},"has_planted_failure":false}
+{"id":"passport-document-number","title":"Passport document number label","labeled_count":4,"labeled_by_type":{"NAME":1,"PASSPORT":1,"A_NUMBER":1,"ADDRESS":1},"has_planted_failure":false}
+{"id":"noid-hearing","title":"Notice of intent to deny","labeled_count":4,"labeled_by_type":{"NAME":1,"A_NUMBER":1,"DOB":1,"ADDRESS":1},"has_planted_failure":false}
+{"id":"combo-card","title":"Combo card production","labeled_count":6,"labeled_by_type":{"NAME":1,"A_NUMBER":1,"SSN":1,"DOB":1,"PASSPORT":1,"ADDRESS":1},"has_planted_failure":false}
+{"id":"short-a-number-variants","title":"A-number format variants","labeled_count":5,"labeled_by_type":{"NAME":1,"A_NUMBER":3,"ADDRESS":1},"has_planted_failure":false}
+{"id":"planted-validation-failure","title":"⚠️ Planted — token validation failure (Sentry demo)","labeled_count":6,"labeled_by_type":{"NAME":1,"A_NUMBER":1,"SSN":1,"DOB":1,"PASSPORT":1,"ADDRESS":1},"has_planted_failure":true}
+{"id":"planted-detection-failure","title":"⚠️ Planted — missed address (leakage block)","labeled_count":4,"labeled_by_type":{"NAME":1,"A_NUMBER":1,"SSN":1,"ADDRESS":1},"has_planted_failure":true}

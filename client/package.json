@@ -25,9 +25,12 @@
   "dependencies": {
     "@deepgram/sdk": "^5.4.0",
     "@huggingface/transformers": "^4.2.0",
+    "@passage/shared": "file:../shared",
     "@sentry/react": "^10.59.0",
+    "pdfjs-dist": "^6.0.227",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.2",

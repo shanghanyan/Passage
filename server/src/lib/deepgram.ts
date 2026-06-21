@@ -1,4 +1,5 @@
-import { extractExplanationText, ttsVoiceForLanguage } from "./explanation-text.js";
+import { deepgramListenQueryParams } from "./deepgram-keywords.js";
+import { extractExplanationText, ttsVoiceForLanguage } from "@passage/shared/explanation-text.js";
 
 export { extractExplanationText, ttsVoiceForLanguage };
 
@@ -22,7 +23,6 @@ export async function mintDeepgramClientToken(): Promise<
     return { mode: "client", token: data.access_token, expiresIn: data.expires_in };
   }
 
-  // Keys without grant permission (common on trial) — browser sends audio to our proxy instead
   if (res.status === 403) {
     return {
       mode: "server-proxy",
@@ -43,18 +43,15 @@ export async function transcribeAudio(
   const apiKey = process.env.DEEPGRAM_API_KEY;
   if (!apiKey) throw new Error("DEEPGRAM_API_KEY is not set");
 
-  const lang = encodeURIComponent(language.trim() || "en-US");
-  const res = await fetch(
-    `https://api.deepgram.com/v1/listen?model=nova-3&language=${lang}&smart_format=true&punctuate=true`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Token ${apiKey}`,
-        "Content-Type": mimeType || "audio/webm",
-      },
-      body: buffer,
+  const params = deepgramListenQueryParams(language);
+  const res = await fetch(`https://api.deepgram.com/v1/listen?${params.toString()}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Token ${apiKey}`,
+      "Content-Type": mimeType || "audio/webm",
     },
-  );
+    body: buffer,
+  });
 
   if (!res.ok) {
     const detail = await res.text();

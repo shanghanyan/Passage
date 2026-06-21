@@ -54,7 +54,7 @@ export const WORKFLOW_UI: Record<string, Record<string, string>> = {
       "Loading on-device NER and running regex detectors — names, A-numbers, SSNs, addresses, and dates. Nothing is sent over the network.",
     "loading.translating.title": "Translating with Claude",
     "loading.translating.subtitle":
-      "Sending redacted version only and validating Claude's response before display.",
+      "Sending redacted version only, back-translating to verify dates/deadlines, then validating tokens before display.",
     "pii.NAME": "Name",
     "pii.A_NUMBER": "A-#",
     "pii.SSN": "SSN",
@@ -65,7 +65,9 @@ export const WORKFLOW_UI: Record<string, Record<string, string>> = {
     "upload.readFailed": "Could not read text file",
     "upload.extractFailed": "Extraction failed",
     "upload.serverNotice":
-      "PDF and image uploads are processed on our server for text extraction and are not yet covered by the same client-side redaction guarantee as pasted text or .txt files. For full privacy protection, paste text directly or use a .txt file.",
+      "Server fallback only — used when in-browser extraction fails. Raw file bytes reach the server briefly. Prefer paste or .txt for strongest privacy.",
+    "upload.clientNotice":
+      "PDF and images are extracted in your browser — raw files stay on your device until you send redacted text.",
     "input.demoOnlyTitle": "Demo-only — tests fail-closed paths",
   },
   es: {

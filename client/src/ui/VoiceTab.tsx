@@ -148,7 +148,16 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
       setTtsText(result.tts_text);
       setAutoPlayAnswer(autoListen);
       const meta: string[] = [`STT: ${sttLanguage}`];
-      if (result.from_cache) meta.push("LangCache hit");
+      if (result.from_cache) {
+        const sim =
+          result.cache_similarity != null
+            ? ` (${Math.round(result.cache_similarity * 100)}%)`
+            : "";
+        meta.push(`LangCache hit${sim}`);
+      }
+      if (result.langcache_hit_rate != null) {
+        meta.push(`cache rate ${Math.round(result.langcache_hit_rate * 100)}%`);
+      }
       if (result.memory_turns) meta.push(`${result.memory_turns} prior turn(s)`);
       if (result.agent_memory) meta.push("Agent Memory on");
       setVoiceMeta(meta.join(" · "));

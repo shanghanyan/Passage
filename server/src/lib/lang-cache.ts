@@ -10,6 +10,23 @@ interface LangCacheConfig {
   apiKey: string;
 }
 
+export interface LangCacheHit {
+  response: string;
+  similarity: number;
+}
+
+let cacheHits = 0;
+let cacheMisses = 0;
+
+export function getLangCacheStats(): { hits: number; misses: number; hitRate: number | null } {
+  const total = cacheHits + cacheMisses;
+  return {
+    hits: cacheHits,
+    misses: cacheMisses,
+    hitRate: total > 0 ? cacheHits / total : null,
+  };
+}
+
 function getConfig(): LangCacheConfig | null {
   const baseUrl = (process.env.LANGCACHE_URL ?? "").replace(/\/$/, "");
   const cacheId = process.env.LANGCACHE_CACHE_ID ?? "";
@@ -35,7 +52,7 @@ export function buildVoiceCachePrompt(redactedText: string, question: string): s
   return `[passage:${docFingerprint}]\nQ: ${question.trim()}`;
 }
 
-export async function searchVoiceCache(prompt: string): Promise<string | null> {
+export async function searchVoiceCache(prompt: string): Promise<LangCacheHit | null> {
   const cfg = getConfig();
   if (!cfg) return null;
 
@@ -48,17 +65,28 @@ export async function searchVoiceCache(prompt: string): Promise<string | null> {
       body: JSON.stringify({ prompt, numResults: 1 }),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      cacheMisses += 1;
+      return null;
+    }
 
     const data = (await res.json()) as {
       data?: Array<{ response?: string; similarity?: number }>;
     };
 
     const hit = data.data?.[0];
-    if (!hit?.response) return null;
+    if (!hit?.response) {
+      cacheMisses += 1;
+      return null;
+    }
     assertMemoryTextSafe(hit.response);
-    return hit.response;
+    cacheHits += 1;
+    return {
+      response: hit.response,
+      similarity: typeof hit.similarity === "number" ? hit.similarity : 1,
+    };
   } catch {
+    cacheMisses += 1;
     return null;
   }
 }

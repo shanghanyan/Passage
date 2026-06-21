@@ -22,6 +22,7 @@ export function InputPhase({ flow }: { flow: PassageFlow }) {
           onTextReady={(text, source) => void flow.ingestDocumentText(text, source)}
           onError={(message) => flow.setError(message || null)}
           onConnectionLost={() => flow.setConnectionLost(true)}
+          onExtractNotice={(message) => flow.showToast(message)}
         />
       </RiseIn>
 

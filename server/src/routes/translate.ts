@@ -4,7 +4,8 @@ import {
   translateRedactedText,
   validateTokenPreservation,
 } from "../lib/claude.js";
-import { captureExternalError, captureValidationMismatch } from "../lib/sentry.js";
+import { assertRateLimit, RateLimitError } from "../lib/session-store.js";
+import { captureExternalError, captureTranslationMeaningFailure, captureValidationMismatch } from "../lib/sentry.js";
 
 const FALLBACK =
   "We couldn't safely process this section — try again or review manually.";
@@ -24,7 +25,20 @@ export async function postTranslate(req: Request, res: Response): Promise<void> 
   const sessionId = typeof session_id === "string" ? session_id : "unknown";
 
   try {
-    const { text, traceId } = await translateRedactedText(redacted_text, target_language.trim());
+    await assertRateLimit(sessionId, "translate");
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      res.status(429).json({ ok: false, fallback: err.message });
+      return;
+    }
+    throw err;
+  }
+
+  try {
+    const { text, traceId, meaningCheck } = await translateRedactedText(
+      redacted_text,
+      target_language.trim(),
+    );
 
     let output = text;
     if (planted_validation_failure === true) {
@@ -37,6 +51,15 @@ export async function postTranslate(req: Request, res: Response): Promise<void> 
         expected: validation.expected,
         found: validation.found,
         sessionId,
+      });
+      res.json({ ok: false, fallback: FALLBACK });
+      return;
+    }
+
+    if (!meaningCheck.ok) {
+      captureTranslationMeaningFailure({
+        sessionId,
+        reason: meaningCheck.reason,
       });
       res.json({ ok: false, fallback: FALLBACK });
       return;

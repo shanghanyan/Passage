@@ -1,21 +1,30 @@
 import type { Express, Request, Response } from "express";
-
-let lastHeartbeat = 0;
-let tabClosed = false;
+import {
+  getLauncherSessionState,
+  recordLauncherGoodbye,
+  recordLauncherHeartbeat,
+} from "../lib/session-store.js";
 
 export function registerLauncherRoutes(app: Express): void {
   app.post("/api/launcher/heartbeat", (_req, res) => {
-    tabClosed = false;
-    lastHeartbeat = Date.now();
-    res.json({ ok: true });
+    void recordLauncherHeartbeat()
+      .then(() => res.json({ ok: true }))
+      .catch(() => res.json({ ok: true }));
   });
 
   app.post("/api/launcher/goodbye", (_req, res) => {
-    tabClosed = true;
-    res.json({ ok: true });
+    void recordLauncherGoodbye()
+      .then(() => res.json({ ok: true }))
+      .catch(() => res.json({ ok: true }));
   });
 
   app.get("/api/launcher/session", (_req, res) => {
-    res.json({ ok: true, lastHeartbeat, closed: tabClosed });
+    void getLauncherSessionState()
+      .then(({ lastHeartbeat, closed }) => {
+        res.json({ ok: true, lastHeartbeat, closed });
+      })
+      .catch(() => {
+        res.json({ ok: true, lastHeartbeat: 0, closed: false });
+      });
   });
 }

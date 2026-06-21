@@ -109,6 +109,7 @@ export type StringKey =
   | "upload.readFailed"
   | "upload.extractFailed"
   | "upload.serverNotice"
+  | "upload.clientNotice"
   | "input.demoOnlyTitle"
   | "voice.completeFirst"
   | "voice.micDisclaimerTitle"
@@ -181,6 +182,7 @@ const en: Record<StringKey, string> = {
   "upload.ack": "I understand — proceed with server-side extraction",
   "upload.proceed": "Upload",
   "upload.cancel": "Cancel",
+  "upload.clientNotice": "PDF and images are extracted in your browser — raw files stay on your device until you send redacted text.",
   "tab.translation": "Translation",
   "tab.privacy": "Privacy",
   "tab.voice": "Voice Q&A",

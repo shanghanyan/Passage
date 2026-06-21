@@ -1,6 +1,6 @@
 # Passage — Project Architecture & File Reference
 
-**Passage** is a UC Berkeley AI Hackathon 2026 (World Track) demo: paste U.S. immigration correspondence, detect and redact PII entirely in the browser, translate and explain it via Claude in 11 languages, then ask follow-up questions by voice — with a hard privacy boundary so raw identifiers never reach external APIs.
+**Passage** is a UC Berkeley AI Hackathon 2026 (World Track) demo: paste U.S. immigration correspondence, detect and redact PII in the browser, translate and explain it via Claude in 11 languages, then ask follow-up questions by voice — with an **inspectable privacy boundary** (best-effort detection, fail-closed output validation, per-type recall metrics) and **translation quality checks** (back-translation, immigration glossary).
 
 This document describes the system architecture, every source file in the repository, what each file depends on, and an honest assessment of what is technically strong versus what is conventional or hackathon-scoped.
 
@@ -22,18 +22,20 @@ This document describes the system architecture, every source file in the reposi
 
 ## High-level architecture
 
-Passage is a **monorepo** with three runnable surfaces:
+Passage is a **monorepo** with four packages:
 
 | Surface | Role |
 |---------|------|
-| **Client** (`client/`) | React 19 + Vite SPA — detection, redaction, UI, voice capture |
+| **Client** (`client/`) | React 19 + Vite SPA — detection, redaction, client-side extract, UI, voice |
 | **Server** (`server/`) | Express API — Claude, Deepgram, Redis, observability |
-| **Launcher** (`launch.mjs`, `Launch Passage.app`) | Orchestrates Docker Phoenix, both dev servers, browser lifecycle |
+| **Shared** (`shared/`) | `@passage/shared` — `sentry-scrub`, `explanation-text` (no drift) |
+| **Launcher** (`launch.mjs`, `Launch Passage.app`) | Docker Phoenix, dev servers, browser lifecycle |
 
 ```mermaid
 flowchart TB
   subgraph browser [Browser — client/]
-    Input[Paste text]
+    Upload[PDF/image · pdf.js + Tesseract]
+    Input[Paste / .txt]
     Detect[Regex + BERT NER]
     Redact["Tokenize ⟦PII:TYPE:n⟧"]
     Gate[Explicit send gate]
@@ -42,40 +44,36 @@ flowchart TB
   end
 
   subgraph upstash [Upstash Redis]
-    Session["Session marker · TTL · no raw PII"]
+    Session["Markers · rate limits · launcher heartbeat"]
   end
 
   subgraph redisCloud [Redis Cloud — optional]
-    AM[Agent Memory · redacted Q&A turns]
-    LC[LangCache · semantic FAQ cache]
+    AM[Agent Memory]
+    LC[LangCache + hit stats]
   end
 
-  subgraph server [Express server — server/]
-    Routes[REST routes]
+  subgraph server [Express — server/]
+    Translate["Translate + back-translate verify"]
     Claude[Claude Sonnet 4.6]
-    DG[Deepgram STT / TTS]
-    RelDocs[Related documents]
-    OTEL[OpenTelemetry → Phoenix or Arize AX]
-    Sentry[Sentry error monitoring]
+    DG[Deepgram STT/TTS · redact + keywords]
+    OTEL[OTEL → Phoenix or Arize AX]
+    Sentry[Sentry + recall alerts]
   end
 
-  Input --> Detect --> Redact --> Gate
-  Gate -->|POST /api/redaction-session-token| Session
-  Gate -->|POST /api/translate| Claude
-  Validate --> UI
-  UI -->|POST /api/related-documents| RelDocs
-  RelDocs --> Claude
-  UI -->|POST /api/voice/question| Routes
-  Routes --> AM
-  Routes --> LC
-  Routes --> Claude
-  Routes --> DG
+  Upload --> Detect
+  Input --> Detect
+  Detect --> Redact --> Gate
+  Gate -->|scoped creds| Session
+  Gate -->|POST /api/translate| Translate --> Claude
+  Claude --> Validate --> UI
+  UI -->|voice| LC --> AM --> Claude
+  UI --> DG
   server --> OTEL
   browser --> Sentry
   server --> Sentry
 ```
 
-**The architectural bet:** redaction is not a feature flag — it is a **boundary**. Nothing network-bound carries raw A-numbers, SSNs, DOB, passport numbers, names, or addresses. Tokens are preserved through Claude; the UI deliberately does **not** reinsert raw values after translation (tokenized display only).
+**The architectural bet:** redaction is a **boundary on what leaves the browser to external APIs**, not a categorical detection guarantee. Detection is best-effort (regex + CoNLL-2003 NER); output validation and back-translation checks fail closed. Tokens are preserved through Claude; the UI shows tokenized text by default (local reinsert from `tokenMap` is privacy-neutral but not enabled in demo UI).
 
 ---
 
@@ -83,16 +81,18 @@ flowchart TB
 
 | Layer | Choices |
 |-------|---------|
+| **Shared** | `@passage/shared` — Sentry scrub + explanation-text extraction |
 | **Client runtime** | React 19, TypeScript, Vite 6 |
-| **UI localization** | `client/src/i18n/` — 11 locale packs; `langCode` drives UI + translation target |
-| **In-browser ML** | `@huggingface/transformers` — `Xenova/bert-base-NER` (Transformers.js) |
-| **Voice** | `@deepgram/sdk` — Nova-3 STT, Aura-2 TTS (client token or server proxy) |
+| **Client extract** | `pdfjs-dist`, `tesseract.js` — in-browser PDF/image OCR |
+| **UI localization** | `client/src/i18n/` — 11 locale packs |
+| **In-browser ML** | `@huggingface/transformers` — `Xenova/bert-base-NER` (CoNLL-2003) |
+| **Voice** | `@deepgram/sdk` — Nova-3 STT (redact + keywords), Aura-2 TTS |
 | **Server** | Express 4, TypeScript, `tsx` for dev |
-| **LLM** | Anthropic SDK — `claude-sonnet-4-6` |
-| **Session store** | Upstash Redis REST (`@upstash/redis`) — PII-free session markers |
-| **Optional memory/cache** | Redis Cloud Agent Memory + LangCache (REST clients) |
-| **Observability** | OpenTelemetry + OpenInference; Phoenix (local Docker) or Arize AX Cloud |
-| **Errors** | Sentry (browser + Node), with shared PII scrubbing regex |
+| **LLM** | Anthropic SDK — `claude-sonnet-4-6`; structured tool output + prompt caching |
+| **Session store** | Upstash Redis — markers, rate limits, launcher heartbeat |
+| **Optional memory/cache** | Redis Cloud Agent Memory + LangCache |
+| **Observability** | OpenTelemetry + OpenInference; Phoenix or Arize AX |
+| **Errors** | Sentry (browser + Node) via `@passage/shared/sentry-scrub` |
 | **Verification** | Node/tsx scripts + Playwright E2E privacy audits |
 
 ---
@@ -102,16 +102,18 @@ flowchart TB
 | Stage | Where | Raw PII? | Notes |
 |-------|-------|----------|-------|
 | Paste | Browser only | Yes | Never sent until user clicks send |
-| Detection | Browser | Yes | Regex + optional on-device NER; no network |
+| PDF/image extract | **Browser** (pdf.js + Tesseract.js) | Yes, local | Server fallback only if client fails (rate-limited) |
+| Detection | Browser | Yes | Regex + optional on-device NER; **fail-open** — undetected PII passes |
 | Redaction | Browser | Replaced with tokens | `⟦PII:TYPE:n⟧` format |
-| Pre-send leakage scan | Browser | Block if leak found | Sentry alert; translate blocked |
-| Session registration | Upstash via scoped creds | No | Marker only; minted by server |
-| Translate payload | Server → Claude | Tokens only | Server also validates token shape |
+| Pre-send leakage scan | Browser | Block if known patterns remain | Re-checks same pattern classes as detection |
+| Session registration | Upstash via scoped creds | No | Marker + rate limits + launcher heartbeat |
+| Translate payload | Server → Claude | Tokens only | Structured tool output + glossary + prompt caching |
+| Back-translation verify | Server → Claude | Tokens only | Dates/deadlines diff — fail-closed |
 | Post-Claude validation | Browser | Fail-closed | Token check + raw-leak scan before render |
-| Voice STT | Deepgram | User speech | Transcript redacted in browser before Claude |
+| Voice STT | Deepgram | **Raw audio** | Transcript redacted in browser before Claude; STT redact + keyword boost |
 | Voice answer | Browser | Tokens only | TTS uses explanation section, also tokenized |
-| Agent Memory / LangCache | Redis Cloud | Redacted text only | Safety asserts before persist |
-| Sentry / OTEL | External | Scrubbed / metrics only | Custom spans carry recall, not raw spans |
+| Agent Memory / LangCache | Redis Cloud | Redacted text only | LangCache hit rate returned to UI |
+| Sentry / OTEL | External | Scrubbed / metrics only | Per-type recall spans; recall-drop alerts |
 
 ---
 
@@ -131,12 +133,12 @@ input → (optional edit) → preview → translating → done | blocked
 
 ### Redaction through results
 
-4. **Input** — paste, upload `.txt` (client-only), or upload PDF/image (server extract with privacy gate); optional synthetic demo chips.
+4. **Input** — paste, upload `.txt` (client-only), or upload PDF/image (**client-side** extract; server fallback); optional synthetic demo chips.
 5. **Analyze** — in-browser detection (regex + optional NER); scroll resets to top so **scrubbed preview** is visible first.
 6. **Edit** (optional) — full-screen manual span marking (`EditRedactPhase`) or collapsed **optional manual redact** panel on Privacy tab; both use `ManualRedactToolbar` with optional **match-all** for repeated strings (`manual-match.ts`).
 7. **Privacy preview** — per-type counts, token highlights, send gate, expandable Claude payload.
-8. **Send for translation** — mint session, register marker, POST redacted text.
-9. **Results tabs** — Translation (side-by-side tokens + manual TTS listen), Privacy (audit), Voice Q&A (STT → redact → Claude; optional auto-play answer), **Related documents** (prefetched on translate success).
+8. **Send for translation** — rate-limit check, mint session, register marker, POST redacted text; server runs translate + back-translation verify.
+9. **Results tabs** — Translation (side-by-side tokens + TTS), Privacy (audit), Voice Q&A, Related documents (prefetched).
 
 Planted demo documents intentionally trigger **detection gaps** (address leak) or **validation failures** (Claude token mismatch) for live Sentry/observability beats.
 
@@ -169,10 +171,10 @@ Verification: `client/scripts/verify-ui-locale-default.mjs` (language picker on 
 | `GET` | `/api/launcher/session` | Heartbeat timestamp for launcher shutdown |
 | `POST` | `/api/launcher/goodbye` | Explicit tab close |
 | `POST` | `/api/redaction-session-token` | Mint scoped Upstash credentials |
-| `POST` | `/api/translate` | Redacted text → Claude translation |
-| `POST` | `/api/extract-document` | PDF/image upload → extracted text (multipart; server-side OCR/text) |
-| `POST` | `/api/related-documents` | Redacted text + `target_language` → process label + associated doc types |
-| `POST` | `/api/score-redaction` | Recall metrics → OTEL `redaction-check` span |
+| `POST` | `/api/translate` | Redacted text → Claude; back-translation verify; rate-limited |
+| `POST` | `/api/extract-document` | PDF/image → text (**server fallback**; rate-limited) |
+| `POST` | `/api/related-documents` | Redacted text + `target_language` → process + doc types |
+| `POST` | `/api/score-redaction` | Recall + `recall_by_type` → OTEL; Sentry on threshold breach |
 | `POST` | `/api/deepgram-token` | Short-lived Deepgram grant or server-proxy flag |
 | `POST` | `/api/voice/question` | Redacted context + question → answer + TTS text |
 | `POST` | `/api/voice/speak` | Tokenized text → MP3 |
@@ -186,21 +188,31 @@ Vite dev server proxies `/api/*` → `http://localhost:3001` (`client/vite.confi
 
 Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.json`, `.passage-launch.log`, and `Launch Passage.app/Contents/_CodeSignature/*` (Apple code-signing blobs — not source).
 
+### `shared/` — `@passage/shared`
+
+| File | Purpose | Assessment |
+|------|---------|------------|
+| `package.json` | Workspace package; re-exported by client + server | Monorepo glue |
+| `sentry-scrub.ts` | Regex scrub of PII patterns from Sentry event text/extras | **Single source** — no client/server drift |
+| `explanation-text.ts` | Extract explanation section from Claude output; TTS voice map | **Single source** — shared by client TTS UI + server TTS |
+
+Client and server import via `@passage/shared/*`; thin re-export shims remain in `client/src/lib/` and `server/src/lib/`.
+
 ### Repository root
 
-| File | Purpose | Uses / depends on | Assessment |
-|------|---------|-------------------|------------|
-| `launch.mjs` | Main launcher: observability picker (macOS dialog or `--local`/`--cloud`), ensures deps, starts Phoenix Docker, spawns server+client dev processes, opens browser, polls launcher heartbeat until tab closes, then shuts everything down | Node `child_process`, `fs`, `http`, `path`; macOS `osascript`; `docker compose`; `server/.env` | **Impressive** — full lifecycle orchestration, Docker auto-start, stale-server detection |
-| `package.json` | Root npm scripts: `launch`, `install:all` | npm only | Boilerplate |
-| `README.md` | Setup, architecture, privacy model, verification commands, demo notes | — | **Strong docs** — unusually complete for a hackathon repo |
-| `PROJECT_ARCHITECTURE.md` | This document | — | Meta |
-| `docker-compose.phoenix.yml` | Runs `arizephoenix/phoenix:latest` on port 6006 | Docker | Standard one-service compose |
-| `.gitignore` | Ignores secrets, build artifacts, logs, editor cruft | — | Standard |
-| `08-error-log.md` | Table of known failures and planted demo behaviors | — | Operational notes |
-| `09-demo-script.md` | Timed 5-minute judge rehearsal script | — | Demo ops |
-| `passage V2 Draft.html` | Original static HTML/CSS prototype (~1263 lines) — design source for the React UI | Google Fonts, Tabler Icons CDN | **Design artifact** — superseded by React; still the visual reference |
-| `Launch Passage.app/Contents/Info.plist` | macOS bundle metadata (`LSUIElement`, bundle ID) | — | Standard packaging |
-| `Launch Passage.app/Contents/MacOS/launcher` | Bash wrapper: resolves Node via Homebrew/nvm/fnm, execs `launch.mjs` | bash, osascript | **Practical** — solves Finder’s minimal `PATH` problem |
+| File | Purpose | Assessment |
+|------|---------|------------|
+| `shared/` | `@passage/shared` — `sentry-scrub.ts`, `explanation-text.ts` | **Shared package** — eliminates client/server drift |
+| `launch.mjs` | Main launcher: observability picker, Docker, dev servers, heartbeat shutdown | **Impressive** — lifecycle orchestration |
+| `package.json` | Root npm scripts: `launch`, `install:all` | Boilerplate |
+| `README.md` | Setup, architecture, privacy model, verification commands | **Strong docs** |
+| `PROJECT_ARCHITECTURE.md` | This document | Meta |
+| `docker-compose.phoenix.yml` | Phoenix on port 6006 | Standard compose |
+| `.gitignore` | Ignores secrets, build artifacts, logs | Standard |
+| `08-error-log.md` | Known failures and planted demo behaviors | Operational notes |
+| `09-demo-script.md` | Timed judge rehearsal script | Demo ops |
+| `passage V2 Draft.html` | Static HTML/CSS design prototype | Design artifact |
+| `Launch Passage.app/` | macOS double-click launcher | Practical packaging |
 
 ### `scripts/`
 
@@ -213,8 +225,8 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | File | Purpose | Uses | Assessment |
 |------|---------|------|------------|
 | `index.html` | Vite HTML shell, font/icon links, `#root` mount | Vite → `/src/main.tsx` | Boilerplate |
-| `vite.config.ts` | React plugin; excludes Transformers.js from `optimizeDeps`; proxies `/api` to `:3001` | `vite`, `@vitejs/plugin-react` | Standard Vite setup |
-| `package.json` | Client dependencies and `verify:*` script matrix | React 19, Deepgram, Transformers.js, Sentry, Playwright | Standard |
+| `vite.config.ts` | React plugin; `@passage/shared` alias; proxies `/api` to `:3001` | Standard Vite setup |
+| `package.json` | React 19, Deepgram, Transformers.js, pdfjs-dist, tesseract.js, Playwright | Standard |
 | `tsconfig.json` | Strict browser TS (ES2022, bundler resolution) | — | Standard |
 | `.env.local.example` | Template for optional `VITE_SENTRY_CLIENT_DSN` | — | Boilerplate |
 
@@ -239,17 +251,17 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | `redact.ts` | Left-to-right replacement with `⟦PII:TYPE:n⟧`; session-scoped counters | `./types` | **Core privacy primitive** |
 | `leakage.ts` | Catches undetected address patterns (planted `Apt #4B` demo case) | `./patterns` | Targeted demo guard |
 | `validate.ts` | Fail-closed validation: token preservation + raw-leak scan for translate/voice; Sentry on failure | `@sentry/react`, `sentry-scrub`, `types` | **Impressive** — dual validation, blocks partial render |
-| `explanation-text.ts` | Extracts “explanation” section from Claude output for TTS; maps language → Deepgram Aura-2 voice ID | — | **Useful** — multilingual section markers + voice routing |
-| `prepare-voice-question.ts` | Redacts voice transcript before any network call; verifies no raw leak | `detect`, `redact`, `validate-spans` | **Impressive** — enforces voice privacy boundary |
-| `voice.ts` | Deepgram live STT (WebSocket + MediaRecorder), voice Q&A fetch, TTS MP3 fetch; token vs server-proxy modes | `@deepgram/sdk`, `./errors` | **Impressive** — dual auth, full voice stack |
-| `languages.ts` | 11 translation languages; STT/TTS capability metadata; `PANEL_LABELS` for translation panes | — | Clean config |
-| `manual-match.ts` | Exact-string occurrence search for manual redact match-all | — | Small helper |
-| `extract-document.ts` | Client helpers for `.txt` read, PDF/image server POST to `/api/extract-document` | `api-fetch` | Upload path with privacy gate |
-| `api-fetch.ts` | Fetch wrapper with connection-lost detection; `pingServerHealth()` | — | Resilience helper |
-| `redis.ts` | Mints scoped Upstash creds via server; writes PII-free session marker from browser | `fetch` → `/api/redaction-session-token`, Upstash REST | **Impressive** — scoped creds pattern |
-| `score-redaction.ts` | Computes recall vs ground truth; POSTs metrics to server | `fetch` → `/api/score-redaction` | Clean metrics bridge |
-| `sentry.ts` | Browser Sentry init with scrub hook | `@sentry/react`, `sentry-scrub` | Standard |
-| `sentry-scrub.ts` | Regex scrub of PII patterns from Sentry strings/extras | — | Necessary; duplicated on server |
+| `explanation-text.ts` | Re-export from `@passage/shared/explanation-text` | shared | TTS section extraction |
+| `prepare-voice-question.ts` | Redacts voice transcript before any network call | `detect`, `redact` | Voice privacy boundary |
+| `voice.ts` | Deepgram STT with `redact` + keyword boost; Q&A fetch | `@deepgram/sdk` | Defense-in-depth voice |
+| `languages.ts` | 11 languages; STT/TTS metadata; `PANEL_LABELS` | — | Clean config |
+| `manual-match.ts` | Exact-string search for manual redact match-all | — | Small helper |
+| `extract-document.ts` | **Client-side** pdf.js + Tesseract; server fallback | `pdfjs-dist`, `tesseract.js` | Primary upload path is local |
+| `api-fetch.ts` | Fetch wrapper + connection-lost detection | — | Resilience |
+| `redis.ts` | Scoped Upstash creds; PII-free session marker | Upstash REST | Scoped creds pattern |
+| `score-redaction.ts` | `computeRecall`, **`computeRecallByType`**, threshold alert | `/api/score-redaction` | Per-type metrics bridge |
+| `sentry.ts` | Browser Sentry init with scrub hook | `@passage/shared`, `@sentry/react` | Standard |
+| `sentry-scrub.ts` | Re-export from `@passage/shared/sentry-scrub` | shared | No duplication |
 | `errors.ts` | `formatError()` for safe user-facing messages | — | Small utility |
 | `audit-cases.ts` | Detection QA cases + evaluator (planted failures, overlaps, names) | `./types` | **Impressive** — built-in audit harness |
 
@@ -284,7 +296,7 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | `LandingScroll.tsx` | Scroll landing hero + about; embeds `LanguageSelect`; get-started scroll to tool | `LanguageSelect`, i18n | **Entry UX** — language before paste |
 | `LanguageSelect.tsx` | Shared translation-language `<select>` (landing + reusable) | `LANGUAGES`, flow hook, i18n | Small shared control |
 | `InputPhase.tsx` | Paste area, file upload zone, synthetic doc chips, analyze (no language picker — moved to landing) | `FileUploadZone`, flow hook, i18n | Standard form phase |
-| `FileUploadZone.tsx` | Drag/drop `.txt` / PDF / image; server-extract privacy gate for non-txt | `extract-document`, i18n | Upload with ack UX |
+| `FileUploadZone.tsx` | Drag/drop `.txt` / PDF / image; **client-side extract** (toast on server fallback) | `extract-document`, i18n | Upload without server privacy gate |
 | `ManualRedactPanel.tsx` | Collapsible optional manual PII marks on Privacy tab | `ManualRedactToolbar`, flow hook, i18n | Human-in-the-loop without dominating preview |
 | `ManualRedactToolbar.tsx` | Shared toolbar: PII type picker, match-all prompt, commit/cancel | `manual-match`, flow hook, i18n | Reused by edit + privacy manual redact |
 | `ConnectionLostView.tsx` | Server unreachable recovery UI (localized retry; no start-over while disconnected) | i18n | Resilience |
@@ -321,7 +333,7 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | `verify-explanation-tts.mjs` | Unit test explanation extraction + voice mapping | `explanation-text.ts` | Targeted safety |
 | `verify-voice-redaction.mjs` | Voice transcript redaction cases; documents known gaps | `prepare-voice-question.ts` | **Honest** — admits STT redaction limits |
 | `verify-upload-redaction.mjs` | Extracted upload text must redact before translate payload | `patterns`, `redact` | Upload privacy guard |
-| `verify-name-detection.mjs` | Regex name detection cases (hyphenated, ALL CAPS, etc.) | `detect`, synthetic docs | Targeted detection QA |
+| `verify-name-detection.mjs` | Western + **non-Latin name gap** cases; synthetic doc regression | `detect`, synthetic docs | Honest detection QA |
 | `verify-ui-locale-default.mjs` | Guards: language picker on landing; `uiLocale` derives from `langCode`; connection-lost i18n | reads hook + UI sources | i18n regression guard |
 | `verify-connection-lost.mjs` | Playwright: connection-lost screen (client dev server only, no server) | Playwright | Resilience E2E |
 | `trigger-sentry-browser.mjs` | Playwright: mock bad translate → fail-closed UI beat | Playwright | Demo automation |
@@ -349,18 +361,22 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 
 | File | Purpose | Uses | Assessment |
 |------|---------|------|------------|
-| `claude.ts` | Translate + voice Q&A prompts; token rules; legal-advice guardrails; planted validation failure sim | `@anthropic-ai/sdk`, `./sentry` | **Impressive** — privacy-aware prompting |
+| `claude.ts` | Translate + voice Q&A; **structured tool output**, glossary, prompt caching, back-translation verify | `@anthropic-ai/sdk` | **Impressive** — translation quality + privacy |
+| `translation-verify.ts` | Date/deadline diff after back-translation | — | **Core** — fail-closed meaning check |
+| `immigration-glossary.ts` | USCIS/EOIR terms for Claude system prompt | — | Translation accuracy |
+| `session-store.ts` | Upstash launcher heartbeat + per-session rate limits | `@upstash/redis` | **Production-minded** Redis use |
+| `deepgram-keywords.ts` | STT keyword boosting + redact query params | — | Defense-in-depth for voice |
 | `deepgram.ts` | Mint client token, server-proxy STT/TTS, PII safety asserts on TTS input | Deepgram REST, `./explanation-text` | **Good** — grant vs proxy fallback |
 | `redis.ts` | Upstash REST config, TCP helper, session key naming | `@upstash/redis`, `redis` | Clean abstraction |
-| `sentry.ts` | Server Sentry init + scoped capture helpers | `@sentry/node`, `sentry-scrub` | Standard |
-| `sentry-scrub.ts` | PII regex scrub for Sentry payloads (mirror of client) | — | Necessary duplication |
-| `explanation-text.ts` | Server copy of explanation extraction + TTS voice map | — | Intentional duplicate for server-side TTS |
-| `score-redaction.ts` | Emits custom OTEL span `redaction-check` with recall metrics | `@opentelemetry/api` | **Impressive** — measurable detection quality |
-| `detection-patterns.ts` | Server-side regex-only detection + recall for batch scripts | — | Script support; not full NER pipeline |
-| `agent-memory.ts` | Redis Cloud Agent Memory REST client; stores redacted voice turns only | `fetch` | **Impressive** — safety asserts before persist |
-| `lang-cache.ts` | Redis LangCache semantic cache for voice FAQ; doc fingerprint in cache key | `node:crypto`, `./agent-memory` | **Impressive** — optional perf layer |
-| `related-documents.ts` | Claude JSON: immigration process + 5–8 associated doc types; `target_language` for localized labels | `@anthropic-ai/sdk`, `./sentry` | Informational tab — redacted input only |
-| `document-extract.ts` | PDF text layer + Tesseract OCR for image uploads; 10 MB limit | `pdfjs-dist`, `tesseract.js` | Server-side extract — client must redact before Claude |
+| `sentry.ts` | Server Sentry + validation/meaning/recall capture helpers | `@passage/shared`, `@sentry/node` | Recall-drop alerts |
+| `sentry-scrub.ts` | Re-export from `@passage/shared/sentry-scrub` | shared | No duplication |
+| `explanation-text.ts` | Re-export from `@passage/shared/explanation-text` | shared | Server TTS extraction |
+| `lang-cache.ts` | LangCache semantic cache; **hit/miss stats** + similarity on hit | `./agent-memory` | Cache metrics in voice API |
+| `score-redaction.ts` | Emits `redaction-check` OTEL spans with **per-type recall** | `@opentelemetry/api` | Measurable detection quality |
+| `detection-patterns.ts` | Regex-only detection + `computeRecallByType` for batch scripts | — | Script support; no NER |
+| `agent-memory.ts` | Redis Cloud Agent Memory; redacted voice turns only | `fetch` | Safety asserts before persist |
+| `related-documents.ts` | Claude JSON: process + 5–8 doc types; localized labels | `@anthropic-ai/sdk` | Informational tab |
+| `document-extract.ts` | PDF/OCR **server fallback only**; 10 MB limit | `pdfjs-dist`, `tesseract.js` | Fallback — client extract is primary |
 | `observability/index.ts` | Dual-target OTEL init: Phoenix vs Arize AX based on env | `./phoenix`, `./ax` | **Impressive** — pluggable observability |
 | `observability/phoenix.ts` | Phoenix OTEL registration + Anthropic auto-instrumentation | `@arizeai/phoenix-otel`, OpenInference Anthropic | Sponsor integration |
 | `observability/ax.ts` | Arize AX OTLP exporter + Anthropic instrumentation | `@opentelemetry/*`, OpenInference | Sponsor integration |
@@ -369,16 +385,16 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 
 | File | Purpose | Uses | Assessment |
 |------|---------|------|------------|
-| `translate.ts` | POST translate: Claude call, server token check, planted failure path | `../lib/claude`, `../lib/sentry` | Core API |
+| `translate.ts` | Translate + back-translation verify + rate limit; token check | `claude`, `session-store`, `sentry` | Core API |
 | `redaction-session-token.ts` | Mint scoped Upstash REST credentials for browser session marker | `../lib/redis`, `node:crypto` | Privacy-critical API |
-| `score-redaction.ts` | Accept recall metrics; emit OTEL span (no raw PII in body) | `../lib/score-redaction` | Metrics API |
-| `deepgram-token.ts` | Return short-lived Deepgram grant or `{ serverProxy: true }` | `../lib/deepgram` | Voice auth API |
-| `voice-question.ts` | LangCache lookup → Agent Memory history → Claude; TTS text extraction | agent-memory, lang-cache, claude, deepgram | **Impressive** — tiered voice stack |
-| `voice-speak.ts` | TTS endpoint returning MP3 buffer | `../lib/deepgram` | Thin proxy |
-| `voice-transcribe.ts` | Server-proxy STT for audio blobs | `../lib/deepgram` | Fallback when client can’t hold API key |
-| `extract-document.ts` | PDF/image upload handler → `document-extract.ts` | multer, `./sentry` | Server-side extract with privacy tradeoff |
+| `score-redaction.ts` | Accept recall + `recall_by_type`; OTEL span + Sentry threshold | `score-redaction`, `sentry` | Metrics API |
+| `deepgram-token.ts` | Short-lived Deepgram grant or `{ serverProxy: true }` | `deepgram` | Voice auth API |
+| `voice-question.ts` | LangCache → Agent Memory → Claude; cache stats in response | agent-memory, lang-cache, claude | Tiered voice stack |
+| `voice-speak.ts` | TTS → MP3 | `deepgram` | Thin proxy |
+| `voice-transcribe.ts` | Server-proxy STT (redact + keywords) | `deepgram` | Fallback STT path |
+| `extract-document.ts` | **Server fallback** PDF/image handler (rate-limited) | `document-extract`, `session-store` | Fallback only |
 | `related-documents.ts` | POST handler: validates `redacted_text`, passes `target_language` to Claude | `../lib/related-documents` | Related docs tab API |
-| `launcher-session.ts` | In-memory heartbeat/goodbye for one-click launcher auto-shutdown | express | Clever but **not durable** (in-memory only) |
+| `launcher-session.ts` | Launcher heartbeat/goodbye via **Upstash Redis** | `session-store.ts` | Durable across server restarts |
 
 ### `server/src/data/`
 
@@ -396,8 +412,9 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | `test-explanation-text.ts` | Server-side explanation extraction unit test | `explanation-text.js` | Small unit test |
 | `test-document-extract.ts` | PDF/image extraction smoke test | `document-extract.js` | Upload path unit test |
 | `score-redaction-set.ts` | Batch score all synthetic docs → OTEL spans for trend comparison | detection-patterns, score-redaction, synthetic-docs.json | **Impressive** benchmarking tool |
-| `trigger-sentry-validation.mjs` | Fire Sentry event with token keys only; writes audit JSON | `@sentry/node`, sentry-scrub | Demo/audit tooling |
+| `trigger-sentry-validation.mjs` | Fire Sentry event with token keys only; writes audit JSON | `@sentry/node`, `@passage/shared` | Demo/audit tooling |
 | `audit-sentry-payload.mjs` | Scan exported Sentry JSON for forbidden raw PII strings | `node:fs` | Privacy audit script |
+| `export-eval-dataset.mjs` | Export synthetic doc metadata → `eval-dataset.jsonl` for Arize | `synthetic-docs.json` | Eval dataset bridge |
 
 ---
 
@@ -405,59 +422,44 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 
 ### What is genuinely impressive
 
-1. **Privacy as architecture, not marketing** — Detection, redaction, pre-send leakage blocking, post-Claude fail-closed validation, voice transcript redaction, and tokenized display form a coherent boundary. This is rare in hackathon LLM demos.
+1. **Privacy as architecture, not marketing** — Fail-closed output validation, back-translation checks, per-type recall, and Playwright network audits form a coherent **inspectable** boundary. Detection is honestly best-effort.
 
-2. **Browser-local NER** — Running `Xenova/bert-base-NER` via Transformers.js with regex fallback is a real technical choice (latency, offline-after-load, no PII to a NER API).
+2. **Translation quality** — Back-translation verification, immigration glossary, and structured Claude output address real user harm (missed deadlines) — not just privacy theater.
 
-3. **Verification depth** — 10+ client/server scripts plus Playwright tests that inspect **network payloads** and **DOM** for raw PII exceed typical hackathon quality bars.
+3. **Browser-local NER + client-side extract** — Transformers.js NER and pdf.js/Tesseract extraction keep raw bytes local when the client path succeeds.
 
-4. **Observability with purpose** — Dual Phoenix/Arize export plus custom `redaction-check` spans tie detection recall to traces judges can filter on — not just “we added OTEL.”
+4. **Verification depth** — Playwright tests inspect network payloads and DOM; per-type recall in OTEL/Sentry.
 
-5. **Launcher lifecycle** — `launch.mjs` handles Docker Desktop auto-start, observability mode selection, heartbeat-driven shutdown, and macOS `.app` packaging with PATH fixes — polish most teams skip.
+5. **Redis with real jobs** — Launcher heartbeat, rate limits, session markers — not just sponsor checkboxes.
 
-6. **Connection resilience** — Health pings, localized connection-lost screen (retry only), and `langCode` persistence keep the UX coherent when the server drops.
+6. **Deepgram defense-in-depth** — STT redaction flags + keyword boosting; raw audio exposure documented honestly.
 
-7. **Planted failure modes** — Intentional detection and validation failures with Sentry beats demonstrate fail-closed behavior live.
-
-8. **Voice stack layering** — LangCache → Agent Memory → Claude, with client-side redaction before any question hits the server, is a thoughtful optional enhancement path.
-
-9. **Transparency UI** — Privacy tab with expandable Claude payload and per-type span counts supports “verify in devtools” claims.
-
-10. **Immigrant-facing i18n** — Eleven locale packs cover landing through voice/TTS warnings; UI language tied to translation target; related-documents responses localized server-side.
+7. **Shared `@passage/shared` package** — Single source for `sentry-scrub` and `explanation-text`.
 
 ### What is conventional or hackathon-scoped
 
-1. **No production hardening** — In-memory launcher session store, no auth, no rate limiting, no structured logging beyond console + Sentry, dev-only Vite proxy.
+1. **Demo scope** — No user auth; session-scoped rate limits only; dev Vite proxy; not multi-tenant production.
 
-2. **Duplication** — `explanation-text.ts`, `sentry-scrub.ts`, and synthetic docs exist in both client (TS) and server (TS/JSON). No shared package; drift risk.
+2. **Synthetic docs duplicated** — `client/src/data/synthetic-docs.ts` ↔ `server/src/data/synthetic-docs.json`.
 
-3. **CSS volume without a system** — ~2,400 lines of hand-written CSS ported from a static HTML draft; no Tailwind/component library; maintainability tradeoff.
+3. **Detection floor** — CoNLL-2003 NER + Latin-centric regex; non-Latin names tracked via `recall.name`.
 
-4. **i18n patch files** — `workflow-ui.ts` and `voice-tts-ui.ts` duplicate structure per locale; no ICU/plural rules; some server error strings still English.
+4. **Voice / Deepgram** — Raw audio reaches Deepgram; post-STT browser redaction before Claude.
 
-5. **Server detection is regex-only** — Batch scoring on the server does not run NER; recall metrics understate browser capability when NER catches extra spans.
+5. **Claude-centric backend** — Related-documents is one-shot informational; no RAG or legal-grade QA.
 
-6. **Voice redaction gaps** — Documented in `verify-voice-redaction.mjs`: STT may miss spoken digits; mic disclaimer acknowledges this; not solved.
-
-7. **TTS language fallback** — Several target languages use an English Aura-2 voice reading translated text; functional but not native-quality audio (UI warns in user's language).
-
-8. **Claude-centric backend** — Translation, Q&A, and related-documents are prompt + API calls; the innovation is what you **don’t** send, not novel model orchestration.
-
-9. **Static HTML draft still in repo** — `passage V2 Draft.html` is dead weight for runtime but preserved as design reference.
-
-10. **Express route wiring** — Flat file-per-route structure; no router modules, no middleware layer, no OpenAPI — fine for demo scope.
-
-11. **Redis optional tiers** — Agent Memory and LangCache are nice when configured but the app works without them; adds env complexity for marginal demo gain.
+6. **Translation quality** — Back-translation helps but is not a substitute for human review of deadlines.
 
 ### Summary verdict
 
 | Dimension | Rating | Notes |
 |-----------|--------|-------|
-| **Privacy engineering** | Strong | Coherent boundary, fail-closed, auditable |
-| **Detection quality** | Good (demo) | Regex + NER + manual edit; not production-grade NER |
-| **UX / polish** | Strong for hackathon | Launcher, scroll landing, i18n, tabs, planted demos, CSS investment |
-| **Backend sophistication** | Moderate | Thin Express layer; Claude/Deepgram are integrations |
-| **Test / verify tooling** | Strong | Playwright privacy audits stand out |
+| **Privacy engineering** | Strong | Fail-closed output + honest detection floor + per-type metrics |
+| **Detection quality** | Good (demo) | NAME recall weakest on non-Latin scripts — measured, not hidden |
+| **Translation quality** | Improved | Back-translation + glossary; still not legal-grade |
+| **UX / polish** | Strong for hackathon | Client-side upload extract; tokenized display (local reinsert optional) |
+| **Backend sophistication** | Moderate+ | Rate limits, meaning verification, structured Claude output |
+| **Test / verify tooling** | Strong | Playwright privacy audits + non-Latin name gap tests |
 | **Production readiness** | Low | By design — demo and judge narrative first |
 
 ---
@@ -466,13 +468,13 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 
 | Issue | Detail |
 |-------|--------|
-| **Synthetic docs duplicated** | `client/src/data/synthetic-docs.ts` ↔ `server/src/data/synthetic-docs.json` — update both for ground-truth changes |
-| **Shared logic duplicated** | `explanation-text.ts`, `sentry-scrub.ts` on client and server |
-| **i18n strings** | Split across `strings.ts`, `workflow-ui.ts`, `voice-tts-ui.ts` — update all three merge sources when adding keys |
-| **Launcher session** | In-memory Map in `launcher-session.ts` — single process, lost on restart |
-| **Port conflicts** | Stale server on `:3001` breaks launcher; documented in README |
-| **NER first load** | Large model download on first analyze; `detectionWarning` / `nerNote` surface this |
-| **Legal scope** | Explains documents; explicitly avoids response drafting (prompt-enforced) |
+| **Synthetic docs** | TS source + JSON mirror for server batch scripts — update both |
+| **Shared logic** | `@passage/shared` for scrub + explanation text |
+| **Launcher session** | Upstash Redis via `session-store.ts` — survives server restart |
+| **Upload path** | Primary: client pdf.js + Tesseract; fallback: `/api/extract-document` |
+| **NER first load** | Large model download on first analyze |
+| **Legal scope** | Explains documents; explicitly avoids response drafting |
+| **Display** | Tokenized by default; `tokenMap` reinsert is privacy-neutral (not in demo UI) |
 
 ---
 
@@ -484,4 +486,4 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 
 ---
 
-*Last updated for locale persistence, manual redact match-all, connection-lost UI, and upload/name verification scripts. Excludes `node_modules/`, lock files, build output, logs, and Apple code signature binaries.*
+*Last updated for phases A–G: honest privacy framing, translation verification, client-side upload, per-type recall, Redis session/rate limits, Deepgram hardening, and `@passage/shared` package.*

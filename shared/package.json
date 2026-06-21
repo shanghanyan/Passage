@@ -1,0 +1,10 @@
+{
+  "name": "@passage/shared",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./sentry-scrub": "./sentry-scrub.ts",
+    "./explanation-text": "./explanation-text.ts"
+  }
+}
