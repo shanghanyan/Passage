@@ -9,21 +9,6 @@ export type SttStatus = "connecting" | "listening" | "idle" | "error";
 
 const STT_MODEL = "nova-3";
 
-/** Keyword boosting for non-English names — mirrors server deepgram-keywords.ts */
-function sttKeywordsForLanguage(sttLanguage: string): string[] {
-  const lang = sttLanguage.toLowerCase();
-  const common = ["Maria:Garcia:5", "Nguyen:5", "Kim:5", "Patel:5", "Hassan:5"];
-  if (lang.startsWith("vi")) return [...common, "Nguyen:10", "Tran:10", "Pham:8"];
-  if (lang.startsWith("ko")) return [...common, "Kim:10", "Park:10", "Lee:10"];
-  if (lang.startsWith("zh")) return [...common, "Wang:10", "Li:10", "Zhang:10"];
-  if (lang.startsWith("ar")) return [...common, "Mohammed:10", "Ahmed:10", "Hassan:10"];
-  if (lang.startsWith("tl") || lang.startsWith("fil")) return [...common, "Santos:10", "Reyes:10"];
-  if (lang.startsWith("hi")) return [...common, "Patel:10", "Singh:10", "Kumar:10"];
-  if (lang.startsWith("uk")) return [...common, "Kovalenko:10", "Shevchenko:10"];
-  if (lang.startsWith("es")) return [...common, "Garcia:10", "Rodriguez:10"];
-  return common;
-}
-
 function wrapFetchError(err: unknown, context: string): Error {
   if (err instanceof TypeError && /fetch|network|load failed/i.test(err.message)) {
     return new Error(
@@ -135,15 +120,13 @@ async function startLiveWithToken(
   onStatus?.("connecting");
 
   const client = new DeepgramClient({ accessToken: token });
-  const keywords = sttKeywordsForLanguage(sttLanguage);
+  // Live WS rejects redact/keywords query params (HTTP 400). Server-proxy STT still uses them via /api/voice/transcribe.
   const connection = await client.listen.v1.connect({
     model: STT_MODEL,
     language: sttLanguage,
     punctuate: "true",
     interim_results: "true",
     smart_format: "true",
-    redact: "pii,numbers",
-    keywords: keywords.join(","),
   } as Parameters<typeof client.listen.v1.connect>[0]);
 
   let stream: MediaStream | null = null;
@@ -194,7 +177,15 @@ async function startLiveWithToken(
   });
 
   connection.connect();
-  await connection.waitForOpen();
+  try {
+    await connection.waitForOpen();
+  } catch (err) {
+    const detail =
+      err instanceof Error && err.message
+        ? err.message
+        : "Deepgram live transcription could not connect (WebSocket handshake failed). Relaunch Passage and try again.";
+    throw new Error(detail);
+  }
 
   stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
