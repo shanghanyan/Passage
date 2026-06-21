@@ -1,6 +1,330 @@
 /* App-specific overrides on top of passage-v2.css */
+:root {
+  --nav-height: 76px;
+}
+
 #root {
   min-height: 100vh;
+}
+
+.passage-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.passage-main {
+  flex: 1;
+}
+
+/* ── Nav layout (prevent logo / links / CTA overlap) ── */
+.passage-shell .nav {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px 20px;
+  min-height: var(--nav-height);
+  padding: 14px 48px;
+  background: rgba(26, 26, 26, 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.passage-shell .nav.stuck {
+  padding: 10px 48px;
+}
+
+.passage-shell .nav-logo {
+  justify-self: start;
+  min-width: 0;
+}
+
+.passage-shell .nav-links {
+  justify-self: center;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.passage-shell .nav-cta {
+  justify-self: end;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Hero / landing spacing ── */
+.passage-shell > .hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-top: calc(var(--nav-height) + 40px);
+  padding-bottom: 64px;
+  min-height: auto;
+  box-sizing: border-box;
+}
+
+.passage-shell .hero-content {
+  position: relative;
+  z-index: 2;
+  max-width: 680px;
+  width: 100%;
+}
+
+.passage-shell .hero-body {
+  max-width: 540px;
+}
+
+.passage-shell .hero-actions {
+  margin-bottom: 0;
+}
+
+.passage-shell .hero-stats--inline {
+  position: static;
+  left: auto;
+  bottom: auto;
+  margin-top: 44px;
+  opacity: 1;
+  animation: none;
+  flex-wrap: wrap;
+  gap: 32px 48px;
+}
+
+.passage-shell .hero-compass {
+  width: min(320px, 38vw);
+  height: min(320px, 38vw);
+  right: 2%;
+  opacity: 0.04;
+  pointer-events: none;
+}
+
+.passage-shell .scroll-cue {
+  display: none;
+}
+
+.passage-shell .features-section,
+.passage-shell .how-section,
+.passage-shell .tool-section {
+  scroll-margin-top: calc(var(--nav-height) + 20px);
+}
+
+.passage-shell .tool-section {
+  padding-top: 72px;
+  padding-bottom: 72px;
+}
+
+.passage-analysis {
+  padding-top: calc(var(--nav-height) + 24px) !important;
+  padding-bottom: 96px;
+}
+
+/* ── Workspace / tabs ── */
+.passage-shell .workspace-back {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 20px;
+}
+
+.passage-shell .process-badge {
+  margin: 0 !important;
+  max-width: 100%;
+  line-height: 1.4;
+}
+
+.passage-shell .tabs {
+  position: sticky;
+  top: var(--nav-height);
+  z-index: 40;
+  background: var(--bg);
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+.passage-shell .tab-panel {
+  padding-top: 28px;
+  min-height: 240px;
+}
+
+.passage-shell .tab-panel.show {
+  animation: fadeInPanel 0.35s ease;
+}
+
+@keyframes fadeInPanel {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Loading states ── */
+.loading-state {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.loading-state--panel {
+  flex-direction: column;
+  text-align: center;
+  justify-content: center;
+  padding: 48px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 220px;
+}
+
+.loading-state--overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  gap: 20px;
+  background: rgba(18, 18, 18, 0.82);
+  backdrop-filter: blur(6px);
+  padding: 24px;
+}
+
+.loading-state--inline {
+  padding: 12px 0;
+}
+
+.loading-state__spinner {
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--border);
+  border-top-color: var(--red);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+.loading-state--inline .loading-state__spinner {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+}
+
+.loading-state__title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cream);
+  margin: 0;
+}
+
+.loading-state__subtitle {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--cream-dim);
+  margin: 8px 0 0;
+  max-width: 360px;
+}
+
+.loading-state--overlay .loading-state__subtitle {
+  max-width: 420px;
+}
+
+.upload-zone--busy {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.upload-zone__loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(26, 26, 26, 0.72);
+  border-radius: 6px;
+}
+
+.upload-zone__loading .loading-state--panel {
+  min-height: auto;
+  padding: 28px 32px;
+  background: var(--surface2);
+  border-color: var(--red);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--red);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.btn .spinner {
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --nav-height: 64px;
+  }
+
+  .passage-shell .nav {
+    grid-template-columns: 1fr auto;
+    padding: 12px 24px;
+  }
+
+  .passage-shell .nav-links {
+    display: none;
+  }
+
+  .passage-shell .nav-logo {
+    grid-column: 1;
+  }
+
+  .passage-shell .nav-cta {
+    grid-column: 2;
+    padding: 8px 14px;
+    font-size: 10px;
+  }
+
+  .passage-shell > .hero {
+    padding-top: calc(var(--nav-height) + 24px);
+    padding-bottom: 40px;
+  }
+
+  .passage-shell .hero-content {
+    max-width: 100%;
+  }
+
+  .passage-shell .hero-compass {
+    display: none;
+  }
+
+  .passage-shell .hero-stats--inline {
+    margin-top: 32px;
+    gap: 20px 28px;
+  }
+
+  .passage-shell .tool-section,
+  .passage-shell .features-section,
+  .passage-shell .how-section {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .passage-shell .tabs {
+    top: var(--nav-height);
+  }
 }
 
 .passage-toast {

@@ -2,5 +2,24 @@
 # macOS app launcher — repo root is three levels up from MacOS/
 REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$REPO" || exit 1
-export PASSAGE_LAUNCH_QUIET=1
-exec /usr/bin/env node "$REPO/launch.mjs"
+
+# Finder-launched apps get a minimal PATH — Node/npm are often missing without this.
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+  # shellcheck disable=SC1090
+  source "$HOME/.nvm/nvm.sh"
+fi
+
+if command -v fnm >/dev/null 2>&1; then
+  eval "$(fnm env)"
+fi
+
+NODE=$(command -v node)
+if [[ -z "$NODE" ]]; then
+  osascript -e 'display alert "Node.js not found" message "Install Node.js, or open Terminal in the Passage folder and run: npm run launch" as critical'
+  exit 1
+fi
+
+export PASSAGE_LAUNCHER=1
+exec "$NODE" "$REPO/launch.mjs"

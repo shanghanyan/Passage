@@ -10,6 +10,7 @@ import { postTranslate } from "./routes/translate.js";
 import { postVoiceTranscribe } from "./routes/voice-transcribe.js";
 import { postVoiceQuestion } from "./routes/voice-question.js";
 import { postVoiceSpeak } from "./routes/voice-speak.js";
+import { registerLauncherRoutes } from "./routes/launcher-session.js";
 import { verifyClaudeHello, verifyRedis } from "./startup.js";
 
 initSentry();
@@ -26,6 +27,8 @@ app.use(express.json());
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
+
+registerLauncherRoutes(app);
 
 app.post("/api/redaction-session-token", postRedactionSessionToken);
 app.post("/api/score-redaction", postScoreRedaction);

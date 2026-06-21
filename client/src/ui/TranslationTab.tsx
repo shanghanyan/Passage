@@ -1,5 +1,6 @@
 import { LANGUAGES } from "../lib/languages";
 import type { PassageFlow } from "../hooks/usePassageFlow";
+import { LoadingState } from "./LoadingState";
 
 export function TranslationTab({ flow }: { flow: PassageFlow }) {
   const lang = LANGUAGES.find((l) => l.code === flow.langCode);
@@ -24,9 +25,11 @@ export function TranslationTab({ flow }: { flow: PassageFlow }) {
 
   if (flow.phase === "translating") {
     return (
-      <p className="pane-body loading">
-        <span className="spinner" style={{ marginRight: 8, verticalAlign: "middle" }} /> Translating with Claude…
-      </p>
+      <LoadingState
+        variant="panel"
+        title="Translating with Claude"
+        subtitle="Redacted text only — preserving placeholder tokens and waiting for validation."
+      />
     );
   }
 

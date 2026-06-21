@@ -8,25 +8,69 @@ The differentiator isn't "we use Claude to translate." It's that **redaction is 
 
 ---
 
-## Configure secrets (required before first launch)
+## First-time setup
 
-The server refuses to start without working Redis and Claude credentials.
+1. **Install dependencies** (once):
+
+```bash
+npm run install:all
+```
+
+2. **Copy env files** and fill in keys:
 
 ```bash
 cp server/.env.example server/.env
 cp client/.env.local.example client/.env.local   # optional — browser Sentry
 ```
 
-### Required (`server/.env`)
+3. **Required in `server/.env`:**
 
 | Variable | Purpose |
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude translation + voice Q&A |
-| `UPSTASH_REDIS_REST_URL` | Ephemeral token-map storage (browser writes directly) |
-| `UPSTASH_REDIS_REST_TOKEN` | Scoped credentials for Redis REST |
-| `REDIS_URL` | Alternative to Upstash REST — TCP `rediss://` URL from Upstash Connect tab |
+| `UPSTASH_REDIS_REST_URL` | Ephemeral token-map storage |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash REST credentials |
 | `SENTRY_DSN` | Server error monitoring |
 | `DEEPGRAM_API_KEY` | Voice transcription + TTS |
+
+For **Arize AX Cloud** traces, also set `ARIZE_SPACE_ID` and `ARIZE_API_KEY` ([app.arize.com](https://app.arize.com) → Settings).
+
+4. **macOS only — allow double-click launch** (once):
+
+```bash
+./scripts/fix-launch-app.sh
+```
+
+If macOS still warns, right-click **Launch Passage.app** → **Open** → **Open** once.
+
+---
+
+## Run Passage
+
+From the repo root:
+
+```bash
+./scripts/fix-launch-app.sh          # macOS — safe to re-run
+npm run launch -- --cloud            # Arize AX Cloud traces
+# npm run launch -- --local          # Local Phoenix (Docker) instead
+```
+
+Browser opens at **http://localhost:5173**. **Close that tab** when you are done — the launcher stops server and client automatically.
+
+Logs if something fails: `.passage-launch.log`
+
+**Port conflict?** If voice or API calls fail, kill any stale server:
+
+```bash
+lsof -ti:3001 | xargs kill
+npm run launch -- --cloud
+```
+
+---
+
+## Configure secrets (reference)
+
+The server refuses to start without working Redis and Claude credentials. See [First-time setup](#first-time-setup) for the required variables.
 
 ### Observability — pick one at launch
 
@@ -72,51 +116,6 @@ If unset, voice still works — just without conversation memory or cache hits.
 | Variable | Purpose |
 |---|---|
 | `VITE_SENTRY_CLIENT_DSN` | Public browser Sentry DSN (optional) |
-
----
-
-## Launch Passage
-
-### macOS (no terminal)
-
-1. Complete [Configure secrets](#configure-secrets-required-before-first-launch) above.
-2. Double-click **`Launch Passage.app`** in the repo root.
-3. Choose observability in the dialog:
-   - **Local Phoenix** — starts Docker Desktop if needed, runs Phoenix, exports traces to `http://localhost:6006`
-   - **Arize AX Cloud** — sends traces to [app.arize.com](https://app.arize.com) (requires `ARIZE_SPACE_ID` + `ARIZE_API_KEY` in `server/.env`)
-4. Wait for the browser to open at **http://localhost:5173** (API server: **http://localhost:3001**).
-5. A **Passage Launcher** dialog stays on screen while the app runs — click **Stop Passage** when you are done (no Terminal needed).
-
-When you quit via **Stop Passage**, the app stops server + client, tears down the Phoenix container, and quits Docker Desktop **only if the launcher started Docker for you**. If Docker was already running, it stays open.
-
-**If macOS blocks double-click** (“cannot be opened” / unidentified developer):
-
-```bash
-./scripts/fix-launch-app.sh
-```
-
-Then double-click again. The first time after signing, you may still need **right-click → Open → Open** once.
-
-**Logs:** `.passage-launch.log` in the repo root.
-
-**Docker lifecycle (Local Phoenix):** Docker Desktop can be fully off before launch. The launcher turns it on, starts Phoenix, and cleans up on exit. You only need Docker Desktop *installed* — no manual `docker compose` before each session.
-
-### Terminal (any OS)
-
-```bash
-npm run install:all    # once (launcher also auto-installs if node_modules are missing)
-npm run launch         # same as node launch.mjs
-```
-
-Observability picker:
-
-| Command | Backend |
-|---|---|
-| `npm run launch` | macOS dialog + **Stop Passage** panel; elsewhere defaults to Local Phoenix |
-| `npm run launch -- --local` | Local Phoenix (Docker) |
-| `npm run launch -- --cloud` | Arize AX Cloud |
-| `npm run launch -- --obs=phoenix` | Same as `--local` |
-| `npm run launch -- --obs=ax` | Same as `--cloud` |
 
 ---
 

@@ -33,7 +33,7 @@ export function UploadToolSection({ flow }: UploadToolSectionProps) {
           </select>
         </div>
 
-        <div className="upload-zone reveal">
+        <div className={`upload-zone reveal${flow.detecting ? " upload-zone--busy" : ""}`}>
           <div style={{ position: "relative" }}>
             <div className="c-tl" />
             <div className="c-br" />

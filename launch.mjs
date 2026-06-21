@@ -14,11 +14,17 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.join(ROOT, "server");
 const CLIENT_DIR = path.join(ROOT, "client");
 const LOG_FILE = path.join(ROOT, ".passage-launch.log");
+const SERVER_URL = "http://localhost:3001";
+const CLIENT_URL = "http://localhost:5173";
 
 function log(msg) {
   const line = `[${new Date().toISOString()}] ${msg}\n`;
   fs.appendFileSync(LOG_FILE, line);
   if (process.env.PASSAGE_LAUNCH_QUIET !== "1") console.log(msg);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function pickObservabilityTarget() {
@@ -85,7 +91,7 @@ async function ensureDockerDaemon() {
         log("Docker Desktop ready");
         return { startedDockerDesktop: true };
       }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await sleep(1000);
     }
 
     throw new Error("Docker Desktop did not become ready in time");
@@ -131,7 +137,7 @@ function stopPhoenixDocker({ startedDockerDesktop }) {
   }
 }
 
-function waitForUrl(url, label, attempts = 30) {
+function waitForUrl(url, label, attempts = 60) {
   return new Promise((resolve) => {
     let tries = 0;
     const tick = () => {
@@ -174,46 +180,111 @@ function openBrowser(url) {
   }
 }
 
-function appleScriptDialogLines(lines) {
-  return lines
-    .map((line) => `"${line.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`)
-    .join(" & return & ");
+function postLauncherHeartbeat() {
+  return new Promise((resolve) => {
+    const req = http.request(
+      `${SERVER_URL}/api/launcher/heartbeat`,
+      { method: "POST" },
+      (res) => {
+        res.resume();
+        resolve(res.statusCode === 200);
+      },
+    );
+    req.on("error", () => resolve(false));
+    req.setTimeout(2000, () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.end();
+  });
 }
 
-function waitForMacStopPanel(target) {
-  if (process.platform !== "darwin") {
-    return Promise.resolve();
+async function waitForLauncherApi() {
+  for (let i = 0; i < 45; i += 1) {
+    if (await postLauncherHeartbeat()) {
+      log("Launcher session API ready");
+      return;
+    }
+    await sleep(1000);
   }
 
-  const obs =
-    target === "phoenix"
-      ? "Local Phoenix → http://localhost:6006"
-      : "Arize AX Cloud → app.arize.com";
+  throw new Error(
+    "Port 3001 is in use by an old Passage server. Quit any running copy, or run: lsof -ti:3001 | xargs kill — then launch again.",
+  );
+}
 
-  const message = appleScriptDialogLines([
-    "Passage is running at http://localhost:5173",
-    "",
-    `Observability: ${obs}`,
-    "",
-    "Leave this dialog open while you use Passage.",
-    "Click Stop Passage when you are done.",
-  ]);
-
+function fetchLauncherSession() {
   return new Promise((resolve) => {
-    const panel = spawn(
-      "osascript",
-      [
-        "-e",
-        `display dialog ${message} buttons {"Stop Passage"} default button 1 with title "Passage Launcher"`,
-      ],
-      { stdio: "ignore" },
-    );
-    panel.on("close", () => resolve());
+    const req = http.get(`${SERVER_URL}/api/launcher/session`, (res) => {
+      let body = "";
+      res.on("data", (chunk) => {
+        body += chunk;
+      });
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(body));
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.setTimeout(2000, () => {
+      req.destroy();
+      resolve(null);
+    });
   });
+}
+
+function notifyStarted() {
+  if (process.platform !== "darwin") return;
+  try {
+    execSync(
+      `osascript -e 'display notification "Close the browser tab when you are done." with title "Passage running at ${CLIENT_URL}"'`,
+    );
+  } catch {
+    // non-fatal
+  }
+}
+
+async function waitForBrowserTabClose(isShuttingDown) {
+  log("Passage running — close the browser tab to stop.");
+
+  let sawHeartbeat = false;
+  for (let i = 0; i < 180 && !isShuttingDown(); i += 1) {
+    const session = await fetchLauncherSession();
+    if (session?.lastHeartbeat > 0) {
+      sawHeartbeat = true;
+      break;
+    }
+    await sleep(1000);
+  }
+
+  if (!sawHeartbeat) {
+    log("No browser tab detected — stopping Passage.");
+    return;
+  }
+
+  let staleChecks = 0;
+  while (!isShuttingDown()) {
+    await sleep(5000);
+    const session = await fetchLauncherSession();
+    const staleMs = Date.now() - (session?.lastHeartbeat ?? 0);
+    if (staleMs > 45000) {
+      staleChecks += 1;
+      if (staleChecks >= 3) {
+        log("Browser tab closed (heartbeat stopped).");
+        return;
+      }
+    } else {
+      staleChecks = 0;
+    }
+  }
 }
 
 async function main() {
   fs.writeFileSync(LOG_FILE, "");
+  process.env.PASSAGE_LAUNCHER = "1";
   const target = pickObservabilityTarget();
   log(`Observability target: ${target}`);
 
@@ -230,6 +301,7 @@ async function main() {
   const childEnv = {
     ...process.env,
     OBSERVABILITY_TARGET: target,
+    PASSAGE_LAUNCHER: "1",
   };
 
   const server = spawn("npm", ["run", "dev"], {
@@ -247,6 +319,8 @@ async function main() {
   });
 
   let shuttingDown = false;
+  const isShuttingDown = () => shuttingDown;
+
   const shutdown = () => {
     if (shuttingDown) return;
     shuttingDown = true;
@@ -264,24 +338,37 @@ async function main() {
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
-  await waitForUrl("http://localhost:3001/api/health", "Server");
-  await waitForUrl("http://localhost:5173", "Client");
-  openBrowser("http://localhost:5173");
+  server.on("exit", (code) => {
+    if (!shuttingDown) {
+      log(`Server exited unexpectedly (code ${code ?? "?"}). Check .passage-launch.log`);
+      shutdown();
+    }
+  });
+
+  client.on("exit", (code) => {
+    if (!shuttingDown) {
+      log(`Client exited unexpectedly (code ${code ?? "?"}). Check .passage-launch.log`);
+      shutdown();
+    }
+  });
+
+  const serverReady = await waitForUrl(`${SERVER_URL}/api/health`, "Server");
+  if (!serverReady) {
+    throw new Error("Server did not start — check .passage-launch.log (Redis/Claude keys in server/.env?)");
+  }
+
+  await waitForLauncherApi();
+
+  await waitForUrl(CLIENT_URL, "Client");
+  openBrowser(CLIENT_URL);
+  notifyStarted();
 
   if (target === "phoenix") {
     log("Phoenix UI → http://localhost:6006");
   }
 
-  if (process.platform === "darwin") {
-    log("Passage running — use the Stop Passage dialog to quit.");
-    await waitForMacStopPanel(target);
-    shutdown();
-    return;
-  }
-
-  log("Passage running. Press Ctrl+C in this window to stop.");
-
-  await new Promise(() => {});
+  await waitForBrowserTabClose(isShuttingDown);
+  shutdown();
 }
 
 main().catch((err) => {

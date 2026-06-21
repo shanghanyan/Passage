@@ -1,7 +1,9 @@
 import { useCallback, useRef, useState } from "react";
+import { formatError } from "../lib/errors";
 import { askVoiceQuestion, fetchSpeakAudio, startLiveTranscription } from "../lib/voice";
 import { Sentry } from "../lib/sentry";
 import type { PassageFlow } from "../hooks/usePassageFlow";
+import { LoadingState } from "./LoadingState";
 
 export function VoiceTab({ flow }: { flow: PassageFlow }) {
   const [listening, setListening] = useState(false);
@@ -34,8 +36,8 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
           else setTranscript(text);
         },
         (err) => {
-          Sentry.captureException(err);
-          setVoiceError(err.message);
+          Sentry.captureException(err instanceof Error ? err : new Error(formatError(err)));
+          setVoiceError(formatError(err));
           setListening(false);
         },
       );
@@ -45,8 +47,8 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
         console.log("[Passage Phase 6] Using server-proxy STT (Deepgram key lacks grant permission)");
       }
     } catch (err) {
-      Sentry.captureException(err instanceof Error ? err : new Error(String(err)));
-      setVoiceError(err instanceof Error ? err.message : "Microphone failed");
+      Sentry.captureException(err instanceof Error ? err : new Error(formatError(err)));
+      setVoiceError(formatError(err));
     }
   }, [listening, canUseVoice]);
 
@@ -87,8 +89,8 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
       audioRef.current = audio;
       await audio.play();
     } catch (err) {
-      Sentry.captureException(err instanceof Error ? err : new Error(String(err)));
-      setVoiceError(err instanceof Error ? err.message : "Voice question failed");
+      Sentry.captureException(err instanceof Error ? err : new Error(formatError(err)));
+      setVoiceError(formatError(err));
     } finally {
       setBusy(false);
     }
@@ -149,6 +151,14 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
           placeholder="Speak or type your question…"
         />
       </div>
+
+      {busy && (
+        <LoadingState
+          variant="panel"
+          title="Processing your question"
+          subtitle="Claude is answering from redacted context — preparing TTS on PII-free text."
+        />
+      )}
 
       {voiceError && (
         <p className="passage-error" role="alert">

@@ -1,13 +1,41 @@
 import { createClient, LiveTranscriptionEvents } from "@deepgram/sdk";
+import { formatError } from "./errors";
 
 export type DeepgramAuth =
   | { mode: "client"; token: string; expiresIn: number }
   | { mode: "server-proxy"; message: string };
 
+function wrapFetchError(err: unknown, context: string): Error {
+  if (err instanceof TypeError && /fetch|network|load failed/i.test(err.message)) {
+    return new Error(
+      `${context}: Passage server is not reachable. If you closed the browser tab, relaunch Passage. Otherwise check that the server is still running on port 3001.`,
+    );
+  }
+  return err instanceof Error ? err : new Error(formatError(err));
+}
+
+async function readApiError(res: Response, label: string): Promise<Error> {
+  try {
+    const body = (await res.json()) as { fallback?: string; error?: unknown; ok?: boolean };
+    if (body.fallback) return new Error(body.fallback);
+    if (typeof body.error === "string") return new Error(body.error);
+    if (body.ok === false && !body.fallback) {
+      return new Error(`${label} failed — the server could not complete this request. Relaunch Passage and try again.`);
+    }
+  } catch {
+    // ignore JSON parse failures
+  }
+  return new Error(`${label} failed (HTTP ${res.status})`);
+}
+
 export async function fetchDeepgramAuth(): Promise<DeepgramAuth> {
-  const res = await fetch("/api/deepgram-token", { method: "POST" });
-  if (!res.ok) throw new Error(`Deepgram auth failed (${res.status})`);
-  return res.json();
+  try {
+    const res = await fetch("/api/deepgram-token", { method: "POST" });
+    if (!res.ok) throw await readApiError(res, "Deepgram auth");
+    return res.json();
+  } catch (err) {
+    throw wrapFetchError(err, "Microphone setup");
+  }
 }
 
 interface VoiceQuestionResponse {
@@ -26,39 +54,51 @@ export async function askVoiceQuestion(params: {
   redactedText: string;
   targetLanguage: string;
 }): Promise<VoiceQuestionResponse> {
-  const res = await fetch("/api/voice/question", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      transcript: params.transcript,
-      session_id: params.sessionId,
-      redacted_text: params.redactedText,
-      target_language: params.targetLanguage,
-    }),
-  });
-  if (!res.ok) throw new Error(`Voice question failed (${res.status})`);
-  return res.json();
+  try {
+    const res = await fetch("/api/voice/question", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcript: params.transcript,
+        session_id: params.sessionId,
+        redacted_text: params.redactedText,
+        target_language: params.targetLanguage,
+      }),
+    });
+    if (!res.ok) throw await readApiError(res, "Voice question");
+    return res.json();
+  } catch (err) {
+    throw wrapFetchError(err, "Voice question");
+  }
 }
 
 export async function fetchSpeakAudio(text: string): Promise<ArrayBuffer> {
-  const res = await fetch("/api/voice/speak", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
-  });
-  if (!res.ok) throw new Error(`TTS failed (${res.status})`);
-  return res.arrayBuffer();
+  try {
+    const res = await fetch("/api/voice/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw await readApiError(res, "Text-to-speech");
+    return res.arrayBuffer();
+  } catch (err) {
+    throw wrapFetchError(err, "Text-to-speech");
+  }
 }
 
 async function transcribeViaServer(blob: Blob): Promise<string> {
-  const res = await fetch("/api/voice/transcribe", {
-    method: "POST",
-    headers: { "Content-Type": blob.type || "audio/webm" },
-    body: blob,
-  });
-  if (!res.ok) throw new Error(`Server transcription failed (${res.status})`);
-  const data = (await res.json()) as { transcript: string };
-  return data.transcript;
+  try {
+    const res = await fetch("/api/voice/transcribe", {
+      method: "POST",
+      headers: { "Content-Type": blob.type || "audio/webm" },
+      body: blob,
+    });
+    if (!res.ok) throw await readApiError(res, "Transcription");
+    const data = (await res.json()) as { transcript: string };
+    return data.transcript;
+  } catch (err) {
+    throw wrapFetchError(err, "Transcription");
+  }
 }
 
 async function startLiveWithToken(
@@ -73,7 +113,7 @@ async function startLiveWithToken(
     smart_format: true,
   });
 
-  connection.on(LiveTranscriptionEvents.Error, (err: unknown) => onError(new Error(String(err))));
+  connection.on(LiveTranscriptionEvents.Error, (err: unknown) => onError(new Error(formatError(err))));
   connection.on(LiveTranscriptionEvents.Transcript, (data: { channel?: { alternatives?: Array<{ transcript?: string }> }; is_final?: boolean }) => {
     const transcript = data.channel?.alternatives?.[0]?.transcript ?? "";
     if (!transcript) return;

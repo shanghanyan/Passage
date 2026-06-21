@@ -22,9 +22,15 @@ export function AnalysisView({ flow }: AnalysisViewProps) {
         <button type="button" className="btn btn-ghost btn-sm" onClick={flow.goBack}>
           <i className="ti ti-arrow-left" /> Back to upload
         </button>
-        <span className="process-badge" style={{ marginLeft: 12 }}>
+        <span className="process-badge">
           {flow.selectedDoc?.title ?? "Your document"} · {flow.targetLanguage}
         </span>
+        {flow.phase === "translating" && (
+          <span className="process-badge" style={{ background: "var(--surface2)", color: "var(--cream-dim)", border: "1px solid var(--border)" }}>
+            <span className="spinner" style={{ marginRight: 6, verticalAlign: "middle" }} />
+            Translating…
+          </span>
+        )}
       </div>
 
       <div className="tabs">

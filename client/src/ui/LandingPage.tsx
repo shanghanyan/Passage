@@ -6,11 +6,6 @@ function scrollToId(id: string) {
 
 export function LandingPage() {
   useEffect(() => {
-    const nav = document.getElementById("mainNav");
-    const onScroll = () => nav?.classList.toggle("stuck", window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -21,10 +16,7 @@ export function LandingPage() {
     );
 
     document.querySelectorAll(".reveal, .reveal-left, .reveal-right").forEach((el) => observer.observe(el));
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      observer.disconnect();
-    };
+    return () => observer.disconnect();
   }, []);
 
   return (
@@ -76,21 +68,21 @@ export function LandingPage() {
               See What It Does
             </button>
           </div>
-        </div>
-        <div className="hero-stats">
-          <div>
-            <div className="stat-num">
-              10<em>+</em>
+          <div className="hero-stats hero-stats--inline">
+            <div>
+              <div className="stat-num">
+                10<em>+</em>
+              </div>
+              <div className="stat-label">Languages</div>
             </div>
-            <div className="stat-label">Languages</div>
-          </div>
-          <div>
-            <div className="stat-num">4</div>
-            <div className="stat-label">Tools Built In</div>
-          </div>
-          <div>
-            <div className="stat-num">0</div>
-            <div className="stat-label">Raw PII Sent</div>
+            <div>
+              <div className="stat-num">4</div>
+              <div className="stat-label">Tools Built In</div>
+            </div>
+            <div>
+              <div className="stat-num">0</div>
+              <div className="stat-label">Raw PII Sent</div>
+            </div>
           </div>
         </div>
         <div className="scroll-cue">

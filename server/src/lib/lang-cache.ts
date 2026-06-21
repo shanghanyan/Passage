@@ -42,9 +42,9 @@ export async function searchVoiceCache(prompt: string): Promise<string | null> {
   const cfg = getConfig();
   if (!cfg) return null;
 
-  assertMemoryTextSafe(prompt);
-
   try {
+    assertMemoryTextSafe(prompt);
+
     const res = await fetch(`${cfg.baseUrl}/v1/caches/${cfg.cacheId}/entries/search`, {
       method: "POST",
       headers: authHeaders(cfg.apiKey),

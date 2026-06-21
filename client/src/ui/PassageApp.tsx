@@ -1,11 +1,14 @@
 import { useEffect } from "react";
+import { useLauncherSession } from "../hooks/useLauncherSession";
 import { usePassageFlow } from "../hooks/usePassageFlow";
 import { AnalysisView } from "./AnalysisView";
 import { LandingPage, scrollToId } from "./LandingPage";
+import { LoadingState } from "./LoadingState";
 import { UploadToolSection } from "./UploadToolSection";
 
 export function PassageApp() {
   const flow = usePassageFlow();
+  useLauncherSession();
 
   useEffect(() => {
     const nav = document.getElementById("mainNav");
@@ -16,7 +19,7 @@ export function PassageApp() {
   }, []);
 
   return (
-    <>
+    <div className="passage-shell">
       <nav className="nav" id="mainNav">
         <button
           type="button"
@@ -55,16 +58,32 @@ export function PassageApp() {
       </nav>
 
       {flow.view === "upload" ? (
-        <>
+        <div className="passage-main">
           <LandingPage />
           <UploadToolSection flow={flow} />
-        </>
+        </div>
       ) : (
-        <section className="tool-section" style={{ paddingTop: 120 }}>
+        <section className="tool-section passage-analysis passage-main">
           <div className="tool-inner">
             <AnalysisView flow={flow} />
           </div>
         </section>
+      )}
+
+      {flow.detecting && (
+        <LoadingState
+          variant="overlay"
+          title="Scanning for sensitive information"
+          subtitle="Loading on-device NER and running regex detectors — names, A-numbers, SSNs, addresses, and dates. Nothing is sent over the network."
+        />
+      )}
+
+      {flow.phase === "translating" && (
+        <LoadingState
+          variant="overlay"
+          title="Translating with Claude"
+          subtitle="Sending redacted tokens only, validating Claude's response, then reinserting values on your screen."
+        />
       )}
 
       <footer className="footer">
@@ -106,6 +125,6 @@ export function PassageApp() {
       </footer>
 
       {flow.toast && <div className="passage-toast">✓ {flow.toast}</div>}
-    </>
+    </div>
   );
 }

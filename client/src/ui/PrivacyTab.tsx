@@ -1,5 +1,6 @@
 import { renderTokenHighlights, piiBadgeClass, piiLabel } from "./helpers";
 import type { PassageFlow } from "../hooks/usePassageFlow";
+import { LoadingState } from "./LoadingState";
 
 export function PrivacyTab({ flow }: { flow: PassageFlow }) {
   if (!flow.redaction) return null;
@@ -57,25 +58,26 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
       </div>
 
       <div className="tool-actions" style={{ marginTop: 16 }}>
-        <button
-          type="button"
-          className="btn btn-red"
-          disabled={flow.phase === "translating"}
-          onClick={() => void flow.sendForTranslation()}
-        >
-          {flow.phase === "translating" ? (
-            <>
-              <span className="spinner" /> Sending…
-            </>
-          ) : (
-            <>
+        {flow.phase === "translating" ? (
+          <LoadingState
+            variant="inline"
+            title="Translation in progress"
+            subtitle="Switch to the Translation tab to watch progress."
+          />
+        ) : (
+          <>
+            <button
+              type="button"
+              className="btn btn-red"
+              onClick={() => void flow.sendForTranslation()}
+            >
               <i className="ti ti-send" /> Send for translation
-            </>
-          )}
-        </button>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => flow.setShowSentPanel((v) => !v)}>
-          <i className="ti ti-code" /> {flow.showSentPanel ? "Hide" : "Show"} Claude payload
-        </button>
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => flow.setShowSentPanel((v) => !v)}>
+              <i className="ti ti-code" /> {flow.showSentPanel ? "Hide" : "Show"} Claude payload
+            </button>
+          </>
+        )}
       </div>
 
       <p className="notice" style={{ marginTop: 12 }}>
