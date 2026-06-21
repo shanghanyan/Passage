@@ -22,14 +22,20 @@ export interface RelatedDocumentItem {
   status: string;
 }
 
-import { uiLocaleFromLangCode } from "../i18n/strings";
+import { persistLangCode, readPersistedLangCode } from "../i18n/locale-storage";
+import { t, uiLocaleFromLangCode } from "../i18n/strings";
+import { findExactOccurrences } from "../lib/manual-match";
 
 export function usePassageFlow() {
   const [activeTab, setActiveTab] = useState<AnalysisTab>("translation");
   const [rawText, setRawText] = useState("");
   const [selectedDocId, setSelectedDocId] = useState("");
   /** Document translation target — UI chrome follows this language. */
-  const [langCode, setLangCode] = useState("en");
+  const [langCode, setLangCodeState] = useState(() => readPersistedLangCode() ?? "en");
+  const setLangCode = useCallback((code: string) => {
+    persistLangCode(code);
+    setLangCodeState(code);
+  }, []);
   const [detectedSpans, setDetectedSpans] = useState<DetectedSpan[]>([]);
   const [redaction, setRedaction] = useState<RedactionResult | null>(null);
   const [sessionId, setSessionId] = useState("");
@@ -139,11 +145,11 @@ export function usePassageFlow() {
     if (ok) {
       setConnectionLost(false);
       setConnectionLostMessage(null);
-      showToast("Connection restored");
+      showToast(t(uiLocale, "connection.restored"));
     } else {
-      setConnectionLostMessage("Server still unreachable — is it running on port 3001?");
+      setConnectionLostMessage(t(uiLocale, "connection.stillDown"));
     }
-  }, [showToast]);
+  }, [showToast, uiLocale]);
 
   const mergeVoiceRedaction = useCallback(
     (newTokens: Record<string, string>, newTokenMeta: Record<string, TokenMeta>) => {
@@ -188,13 +194,35 @@ export function usePassageFlow() {
     setActiveTab("privacy");
   }, [resetOutput]);
 
-  const addManualSpan = useCallback((span: DetectedSpan) => {
+  const addManualSpan = useCallback((span: DetectedSpan, propagateMatches = false) => {
     setManualSpans((prev) => {
-      const duplicate = prev.some((s) => s.start === span.start && s.end === span.end && s.type === span.type);
-      if (duplicate) return prev;
-      return [...prev, span];
+      const next = [...prev];
+      const seen = new Set(prev.map((s) => `${s.start}:${s.end}:${s.type}`));
+
+      const pushSpan = (candidate: DetectedSpan) => {
+        const key = `${candidate.start}:${candidate.end}:${candidate.type}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        next.push(candidate);
+      };
+
+      pushSpan(span);
+
+      if (propagateMatches) {
+        for (const occ of findExactOccurrences(rawText, span.value)) {
+          if (occ.start === span.start && occ.end === span.end) continue;
+          pushSpan({
+            ...span,
+            start: occ.start,
+            end: occ.end,
+            value: rawText.slice(occ.start, occ.end),
+          });
+        }
+      }
+
+      return next.length === prev.length ? prev : next;
     });
-  }, []);
+  }, [rawText]);
 
   const removeManualSpan = useCallback((index: number) => {
     setManualSpans((prev) => prev.filter((_, i) => i !== index));
@@ -358,7 +386,7 @@ export function usePassageFlow() {
     } catch (err) {
       if (err instanceof ConnectionLostError) {
         setConnectionLost(true);
-        setConnectionLostMessage(err.message);
+        setConnectionLostMessage(null);
         setPhase("preview");
         return;
       }

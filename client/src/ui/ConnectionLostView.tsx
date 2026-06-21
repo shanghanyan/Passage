@@ -20,9 +20,6 @@ export function ConnectionLostView({ flow }: ConnectionLostViewProps) {
           <button type="button" className="btn btn-primary" onClick={() => void flow.retryConnection()}>
             <i className="ti ti-refresh" /> {t("connection.retry")}
           </button>
-          <button type="button" className="btn btn-ghost" onClick={flow.startOver}>
-            {t("connection.startOver")}
-          </button>
         </div>
       </div>
     </div>

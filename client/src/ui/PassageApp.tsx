@@ -63,7 +63,7 @@ export function PassageApp() {
       void pingServerHealth().then((ok) => {
         if (!ok) flow.setConnectionLost(true);
       });
-    }, 30_000);
+    }, 5_000);
     return () => window.clearInterval(id);
   }, [flow.connectionLost, flow]);
 
@@ -82,15 +82,10 @@ export function PassageApp() {
       <div className="passage-shell passage-workflow">
         <nav className="nav" id="mainNav">
           <div className="nav-row">
-            <button type="button" className="nav-logo" onClick={flow.startOver} style={{ border: "none", background: "none" }}>
+            <div className="nav-logo" aria-hidden="true">
               <div className="nav-cross">✛</div>
               <div className="nav-wordmark">PASSAGE</div>
-            </button>
-            {flow.phase !== "input" && (
-              <button type="button" className="nav-cta nav-cta--right" onClick={flow.startOver}>
-                <i className="ti ti-file-plus" /> {t("nav.newDocument")}
-              </button>
-            )}
+            </div>
           </div>
         </nav>
         <main className="passage-main workflow-main">

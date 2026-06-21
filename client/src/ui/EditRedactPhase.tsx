@@ -1,9 +1,8 @@
 import { useCallback, useRef, useState } from "react";
-import { PII_TYPES } from "./helpers";
-import { piiLabel } from "../i18n/strings";
 import { useUiLocale } from "../i18n/useUiLocale";
 import type { PassageFlow } from "../hooks/usePassageFlow";
-import type { DetectedSpan, PiiType } from "../lib/types";
+import { ManualRedactToolbar } from "./ManualRedactToolbar";
+import { piiLabel } from "../i18n/strings";
 
 export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
   const { t, locale } = useUiLocale(flow.uiLocale);
@@ -26,23 +25,6 @@ export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
     }
     setSelection({ start, end, text: flow.rawText.slice(start, end) });
   }, [flow.rawText]);
-
-  const addSelectionAs = useCallback(
-    (type: PiiType) => {
-      if (!selection) return;
-      const span: DetectedSpan = {
-        type,
-        start: selection.start,
-        end: selection.end,
-        value: flow.rawText.slice(selection.start, selection.end),
-        source: "manual",
-        confidence: 1,
-      };
-      flow.addManualSpan(span);
-      setSelection(null);
-    },
-    [flow, selection],
-  );
 
   return (
     <section className="workflow-card">
@@ -69,20 +51,11 @@ export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
       />
 
       {selection && (
-        <div className="manual-redact-toolbar" role="toolbar" aria-label={t("edit.selectToolbarAria")}>
-          <span className="manual-redact-label">
-            {t("manual.redactPrefix")} &ldquo;
-            {selection.text.length > 48 ? `${selection.text.slice(0, 48)}…` : selection.text}&rdquo;{" "}
-            {t("edit.redactAs")}
-          </span>
-          <div className="manual-redact-types">
-            {PII_TYPES.map((type) => (
-              <button key={type} type="button" className="btn btn-ghost btn-sm" onClick={() => addSelectionAs(type)}>
-                {piiLabel(locale, type)}
-              </button>
-            ))}
-          </div>
-        </div>
+        <ManualRedactToolbar
+          flow={flow}
+          selection={selection}
+          onClearSelection={() => setSelection(null)}
+        />
       )}
 
       {flow.manualSpans.length > 0 && (

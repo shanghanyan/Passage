@@ -1766,7 +1766,16 @@ html {
   color: var(--cream-dim, #c4b8a8);
 }
 
-.manual-redact-types {
+.manual-redact-toolbar--propagate {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.manual-redact-toolbar--propagate .manual-redact-label {
+  margin: 0;
+}
+
   display: flex;
   flex-wrap: wrap;
   gap: 8px;

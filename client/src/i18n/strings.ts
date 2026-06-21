@@ -38,6 +38,8 @@ export type StringKey =
   | "connection.body"
   | "connection.retry"
   | "connection.startOver"
+  | "connection.restored"
+  | "connection.stillDown"
   | "tts.speed"
   | "tts.speedNormal"
   | "tts.speed2x"
@@ -80,6 +82,9 @@ export type StringKey =
   | "manual.reanalyzeWithMarks"
   | "manual.sourceAriaLabel"
   | "manual.selectToolbarAria"
+  | "manual.matchPrompt"
+  | "manual.redactThisOnly"
+  | "manual.redactAllOccurrences"
   | "edit.title"
   | "edit.notice"
   | "edit.originalLabel"
@@ -180,11 +185,14 @@ const en: Record<StringKey, string> = {
   "tab.privacy": "Privacy",
   "tab.voice": "Voice Q&A",
   "tab.documents": "Related documents",
-  "connection.title": "Connection lost",
+  "connection.title": "Process killed",
   "connection.body":
-    "Passage cannot reach the server right now. Your redacted text is still in the browser — nothing was sent. Check that the server is running and try again.",
+    "Unable to connect. The Passage server is no longer running. Restart with Launch Passage.app or npm run launch in Terminal, then retry.",
   "connection.retry": "Retry connection",
   "connection.startOver": "Start over",
+  "connection.restored": "Connection restored",
+  "connection.stillDown":
+    "Still unable to connect — restart Passage with Launch Passage.app or npm run launch.",
   "tts.speed": "Speed",
   "tts.speedNormal": "1×",
   "tts.speed2x": "2×",
@@ -235,11 +243,14 @@ const es = over(en, {
   "tab.privacy": "Privacidad",
   "tab.voice": "Preguntas por voz",
   "tab.documents": "Documentos relacionados",
-  "connection.title": "Conexión perdida",
+  "connection.title": "Proceso detenido",
   "connection.body":
-    "Passage no puede contactar al servidor. Su texto redactado sigue en el navegador. Verifique que el servidor esté activo e intente de nuevo.",
+    "No se puede conectar. El servidor de Passage ya no está en ejecución. Reinicie con Launch Passage.app o npm run launch en la terminal e intente de nuevo.",
   "connection.retry": "Reintentar conexión",
   "connection.startOver": "Empezar de nuevo",
+  "connection.restored": "Conexión restablecida",
+  "connection.stillDown":
+    "Sigue sin conexión — reinicie Passage con Launch Passage.app o npm run launch.",
   "tts.speed": "Velocidad",
   "docs.loading": "Identificando trámite y tipos de documentos relacionados…",
   "docs.disclaimer":
@@ -287,11 +298,14 @@ const fr = over(en, {
   "tab.privacy": "Confidentialité",
   "tab.voice": "Q&R vocale",
   "tab.documents": "Documents associés",
-  "connection.title": "Connexion perdue",
+  "connection.title": "Processus arrêté",
   "connection.body":
-    "Passage ne peut pas joindre le serveur. Le texte caviardé reste dans le navigateur. Vérifiez que le serveur fonctionne et réessayez.",
+    "Connexion impossible. Le serveur Passage n'est plus en cours d'exécution. Relancez avec Launch Passage.app ou npm run launch dans le terminal, puis réessayez.",
   "connection.retry": "Réessayer",
   "connection.startOver": "Recommencer",
+  "connection.restored": "Connexion rétablie",
+  "connection.stillDown":
+    "Toujours impossible de se connecter — relancez Passage avec Launch Passage.app ou npm run launch.",
   "tts.speed": "Vitesse",
   "docs.loading": "Identification du processus et des documents associés…",
   "docs.disclaimer":
@@ -338,10 +352,13 @@ const zh = over(en, {
   "tab.privacy": "隐私",
   "tab.voice": "语音问答",
   "tab.documents": "相关文件",
-  "connection.title": "连接已断开",
-  "connection.body": "Passage 目前无法连接服务器。脱敏文本仍在浏览器中。请确认服务器正在运行后重试。",
+  "connection.title": "进程已终止",
+  "connection.body":
+    "无法连接。Passage 服务器已停止运行。请通过 Launch Passage.app 或在终端运行 npm run launch 重新启动，然后重试。",
   "connection.retry": "重试连接",
   "connection.startOver": "重新开始",
+  "connection.restored": "连接已恢复",
+  "connection.stillDown": "仍无法连接 — 请用 Launch Passage.app 或 npm run launch 重新启动 Passage。",
   "tts.speed": "速度",
   "docs.loading": "正在识别流程和相关文件类型…",
   "docs.disclaimer": "仅供参考 — 要求因个案而异。这不是法律建议。",
@@ -387,10 +404,13 @@ const vi = over(en, {
   "tab.privacy": "Quyền riêng tư",
   "tab.voice": "Hỏi đáp giọng nói",
   "tab.documents": "Tài liệu liên quan",
-  "connection.title": "Mất kết nối",
-  "connection.body": "Passage không thể kết nối máy chủ. Văn bản đã che vẫn ở trình duyệt. Hãy thử lại.",
+  "connection.title": "Tiến trình đã dừng",
+  "connection.body":
+    "Không thể kết nối. Máy chủ Passage không còn chạy. Khởi động lại bằng Launch Passage.app hoặc npm run launch trong terminal, rồi thử lại.",
   "connection.retry": "Thử lại",
   "connection.startOver": "Bắt đầu lại",
+  "connection.restored": "Đã kết nối lại",
+  "connection.stillDown": "Vẫn không kết nối được — khởi động lại Passage bằng Launch Passage.app hoặc npm run launch.",
   "tts.speed": "Tốc độ",
   "docs.loading": "Đang xác định quy trình và loại tài liệu liên quan…",
   "docs.disclaimer": "Thông tin chung — yêu cầu khác nhau theo từng hồ sơ. Không phải tư vấn pháp lý.",
@@ -436,10 +456,13 @@ const ko = over(en, {
   "tab.privacy": "개인정보",
   "tab.voice": "음성 Q&A",
   "tab.documents": "관련 서류",
-  "connection.title": "연결 끊김",
-  "connection.body": "Passage가 서버에 연결할 수 없습니다. 편집된 텍스트는 브라우저에 남아 있습니다.",
+  "connection.title": "프로세스 종료됨",
+  "connection.body":
+    "연결할 수 없습니다. Passage 서버가 더 이상 실행 중이 아닙니다. Launch Passage.app 또는 터미널에서 npm run launch로 다시 시작한 후 재시도하세요.",
   "connection.retry": "다시 연결",
   "connection.startOver": "처음부터",
+  "connection.restored": "연결이 복구되었습니다",
+  "connection.stillDown": "여전히 연결할 수 없습니다 — Launch Passage.app 또는 npm run launch로 Passage를 다시 시작하세요.",
   "tts.speed": "속도",
   "docs.loading": "절차 및 관련 서류 유형 확인 중…",
   "docs.disclaimer": "일반 정보 — 요건은 사례마다 다릅니다. 법률 자문이 아닙니다.",
@@ -485,10 +508,13 @@ const pt = over(en, {
   "tab.privacy": "Privacidade",
   "tab.voice": "Perguntas por voz",
   "tab.documents": "Documentos relacionados",
-  "connection.title": "Conexão perdida",
-  "connection.body": "O Passage não consegue contactar o servidor. O texto redigido permanece no navegador.",
+  "connection.title": "Processo encerrado",
+  "connection.body":
+    "Não foi possível conectar. O servidor Passage não está mais em execução. Reinicie com Launch Passage.app ou npm run launch no terminal e tente novamente.",
   "connection.retry": "Tentar novamente",
   "connection.startOver": "Recomeçar",
+  "connection.restored": "Conexão restabelecida",
+  "connection.stillDown": "Ainda sem conexão — reinicie o Passage com Launch Passage.app ou npm run launch.",
   "tts.speed": "Velocidade",
   "docs.loading": "Identificando processo e tipos de documentos relacionados…",
   "docs.disclaimer": "Informação geral — requisitos variam por caso. Não é aconselhamento jurídico.",
@@ -534,10 +560,13 @@ const ar = over(en, {
   "tab.privacy": "الخصوصية",
   "tab.voice": "أسئلة صوتية",
   "tab.documents": "مستندات ذات صلة",
-  "connection.title": "انقطع الاتصال",
-  "connection.body": "Passage لا يستطيع الوصول إلى الخادم. النص المعدّل لا يزال في المتصفح.",
+  "connection.title": "تم إيقاف العملية",
+  "connection.body":
+    "تعذّر الاتصال. خادم Passage لم يعد يعمل. أعد التشغيل عبر Launch Passage.app أو npm run launch في الطرفية، ثم أعد المحاولة.",
   "connection.retry": "إعادة المحاولة",
   "connection.startOver": "البدء من جديد",
+  "connection.restored": "تم استعادة الاتصال",
+  "connection.stillDown": "لا يزال الاتصال مستحيلاً — أعد تشغيل Passage عبر Launch Passage.app أو npm run launch.",
   "tts.speed": "السرعة",
   "docs.loading": "جارٍ تحديد الإجراء وأنواع المستندات ذات الصلة…",
   "docs.disclaimer": "معلومات عامة — المتطلبات تختلف. ليست استشارة قانونية.",
@@ -583,10 +612,13 @@ const hi = over(en, {
   "tab.privacy": "गोपनीयता",
   "tab.voice": "आवाज़ Q&A",
   "tab.documents": "संबंधित दस्तावेज़",
-  "connection.title": "कनेक्शन टूटा",
-  "connection.body": "Passage सर्वर तक नहीं पहुँच सकता। संपादित पाठ ब्राउज़र में है।",
+  "connection.title": "प्रक्रिया बंद हो गई",
+  "connection.body":
+    "कनेक्ट नहीं हो सका। Passage सर्वर अब नहीं चल रहा। Launch Passage.app या टर्मिनल में npm run launch से पुनः प्रारंभ करें, फिर पुनः प्रयास करें।",
   "connection.retry": "पुनः प्रयास",
   "connection.startOver": "फिर से शुरू",
+  "connection.restored": "कनेक्शन बहाल",
+  "connection.stillDown": "अभी भी कनेक्ट नहीं — Launch Passage.app या npm run launch से Passage पुनः प्रारंभ करें।",
   "tts.speed": "गति",
   "docs.loading": "प्रक्रिया और संबंधित दस्तावेज़ पहचान…",
   "docs.disclaimer": "सामान्य जानकारी — आवश्यकताएँ भिन्न होती हैं। कानूनी सलाह नहीं।",
@@ -632,10 +664,13 @@ const tl = over(en, {
   "tab.privacy": "Privacy",
   "tab.voice": "Voice Q&A",
   "tab.documents": "Kaugnay na dokumento",
-  "connection.title": "Nawala ang koneksyon",
-  "connection.body": "Hindi maabot ng Passage ang server. Nasa browser pa ang na-redact na teksto.",
+  "connection.title": "Huminto ang proseso",
+  "connection.body":
+    "Hindi makakonekta. Hindi na tumatakbo ang Passage server. I-restart gamit ang Launch Passage.app o npm run launch sa terminal, pagkatapos subukang muli.",
   "connection.retry": "Subukang muli",
   "connection.startOver": "Magsimulang muli",
+  "connection.restored": "Naibalik ang koneksyon",
+  "connection.stillDown": "Hindi pa rin makakonekta — i-restart ang Passage gamit ang Launch Passage.app o npm run launch.",
   "tts.speed": "Bilis",
   "docs.loading": "Tinutukoy ang proseso at kaugnay na dokumento…",
   "docs.disclaimer": "Pangkalahatang impormasyon — nag-iiba ang requirements. Hindi legal advice.",
@@ -681,10 +716,13 @@ const uk = over(en, {
   "tab.privacy": "Конфіденційність",
   "tab.voice": "Голосові Q&A",
   "tab.documents": "Пов’язані документи",
-  "connection.title": "З’єднання втрачено",
-  "connection.body": "Passage не може досягти сервера. Відредагований текст лишається в браузері.",
+  "connection.title": "Процес зупинено",
+  "connection.body":
+    "Неможливо підключитися. Сервер Passage більше не працює. Перезапустіть через Launch Passage.app або npm run launch у терміналі, потім повторіть спробу.",
   "connection.retry": "Повторити",
   "connection.startOver": "Почати спочатку",
+  "connection.restored": "З’єднання відновлено",
+  "connection.stillDown": "Досі немає з’єднання — перезапустіть Passage через Launch Passage.app або npm run launch.",
   "tts.speed": "Швидкість",
   "docs.loading": "Визначення процесу та пов’язаних документів…",
   "docs.disclaimer": "Загальна інформація — вимоги різняться. Це не юридична порада.",

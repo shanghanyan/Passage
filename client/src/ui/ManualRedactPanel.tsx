@@ -1,10 +1,9 @@
 import { useCallback, useRef, useState, type CSSProperties } from "react";
-import { PII_TYPES } from "./helpers";
 import { piiLabel } from "../i18n/strings";
 import { useUiLocale } from "../i18n/useUiLocale";
 import { RiseIn } from "./motion";
 import type { PassageFlow } from "../hooks/usePassageFlow";
-import type { DetectedSpan, PiiType } from "../lib/types";
+import { ManualRedactToolbar } from "./ManualRedactToolbar";
 
 /** Inline manual PII marking on source text — merges with auto-detection on re-analyze. */
 export function ManualRedactPanel({ flow }: { flow: PassageFlow }) {
@@ -23,26 +22,6 @@ export function ManualRedactPanel({ flow }: { flow: PassageFlow }) {
     }
     setSelection({ start, end, text: flow.rawText.slice(start, end) });
   }, [flow.rawText]);
-
-  const addSelectionAs = useCallback(
-    (type: PiiType) => {
-      if (!selection) return;
-      const span: DetectedSpan = {
-        type,
-        start: selection.start,
-        end: selection.end,
-        value: flow.rawText.slice(selection.start, selection.end),
-        source: "manual",
-        confidence: 1,
-      };
-      flow.addManualSpan(span);
-      setSelection(null);
-    },
-    [flow, selection],
-  );
-
-  const selectionPreview =
-    selection && selection.text.length > 48 ? `${selection.text.slice(0, 48)}…` : selection?.text;
 
   return (
     <RiseIn className="manual-redact-panel">
@@ -65,26 +44,12 @@ export function ManualRedactPanel({ flow }: { flow: PassageFlow }) {
       />
 
       {selection && (
-        <div className="manual-redact-toolbar rise-in" role="toolbar" aria-label={t("manual.selectToolbarAria")}>
-          <span className="manual-redact-label">
-            {t("manual.redactPrefix")}{" "}
-            <mark
-              key={selection.text}
-              className="token-redaction-bar manual-redact-confirm-bar"
-              style={{ "--token-index": 0 } as CSSProperties}
-            >
-              {selectionPreview}
-            </mark>{" "}
-            {t("manual.redactSuffix")}
-          </span>
-          <div className="manual-redact-types">
-            {PII_TYPES.map((type) => (
-              <button key={type} type="button" className="btn btn-ghost btn-sm" onClick={() => addSelectionAs(type)}>
-                {piiLabel(locale, type)}
-              </button>
-            ))}
-          </div>
-        </div>
+        <ManualRedactToolbar
+          flow={flow}
+          selection={selection}
+          onClearSelection={() => setSelection(null)}
+          confirmBar
+        />
       )}
 
       {flow.manualSpans.length > 0 && (
