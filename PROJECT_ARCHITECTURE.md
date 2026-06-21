@@ -123,8 +123,9 @@ flowchart TB
 | Translate payload | Server → Claude | Tokens only | Structured output + glossary + caching |
 | Back-translation verify | Server → Claude | Tokens only | **Dates + day-count deadlines only** — fail-closed |
 | Post-Claude validation | Browser | Fail-closed | Token check + raw-leak scan |
+| **Display reinsertion** | Browser | Raw values on screen only | `reinsert.ts` restores explanation + voice “what it means” from in-memory `tokenMap`; never persisted or sent |
 | Voice STT | Deepgram | **Raw audio** | Text path is cleaner; audio path is not equivalent |
-| Voice answer | Browser | Tokens only | TTS uses explanation section, also tokenized |
+| Voice answer | Browser | Tokens to Claude | **What it says** stays tokenized; **what it means** reinserted locally; TTS payload stays tokenized |
 | Agent Memory / LangCache | Redis Cloud | Redacted text only | LangCache hit rate returned to UI |
 | Sentry / OTEL | External | Scrubbed / metrics only | Per-type recall spans; recall-drop alerts |
 
@@ -151,7 +152,7 @@ input → (optional edit) → preview → translating → done | blocked
 6. **Edit** (optional) — full-screen manual span marking (`EditRedactPhase`) or collapsed **optional manual redact** panel on Privacy tab; both use `ManualRedactToolbar` with optional **match-all** for repeated strings (`manual-match.ts`).
 7. **Privacy preview** — per-type counts, token highlights, send gate, expandable Claude payload.
 8. **Send for translation** — rate-limit check, mint session, register marker, POST redacted text; server runs translate + back-translation verify.
-9. **Results tabs** — Translation (side-by-side tokens + TTS), Privacy (audit), Voice Q&A, Related documents (prefetched).
+9. **Results tabs** — Translation (tokenized translation + locally reinserted explanation + tokenized TTS), Privacy (audit), Voice Q&A (**what it says** tokenized; **what it means** reinserted for reading), Related documents (prefetched).
 
 Planted demo documents intentionally trigger **detection gaps** (address leak) or **validation failures** (Claude token mismatch) for live Sentry/observability beats.
 
@@ -262,6 +263,7 @@ Client and server import via `@passage/shared/*`; thin re-export shims remain in
 | `merge-spans.ts` | Resolves overlapping spans by type priority (PASSPORT > A_NUMBER > … > ADDRESS) | `./types` | Solid algorithm |
 | `validate-spans.ts` | Filters junk NER spans (max length, fraction of document) | `./types` | Thoughtful guardrails |
 | `redact.ts` | Left-to-right replacement with `⟦PII:TYPE:n⟧`; session-scoped counters | `./types` | **Core privacy primitive** |
+| `reinsert.ts` | Swap tokens back to raw values for on-screen readability only | — | Translation explanation + voice “what it means” |
 | `leakage.ts` | Catches undetected address patterns (planted `Apt #4B` demo case) | `./patterns` | Targeted demo guard |
 | `validate.ts` | Fail-closed validation: token preservation + raw-leak scan for translate/voice; Sentry on failure | `@sentry/react`, `sentry-scrub`, `types` | **Impressive** — dual validation, blocks partial render |
 | `explanation-text.ts` | Re-export from `@passage/shared/explanation-text` | shared | TTS section extraction |
@@ -316,9 +318,9 @@ Client and server import via `@passage/shared/*`; thin re-export shims remain in
 | `EditRedactPhase.tsx` | Full-screen manual span selection via `ManualRedactToolbar`, re-analyze | flow hook, i18n | **Useful** — human-in-the-loop redaction |
 | `PrivacyTab.tsx` | PII sidebar, token highlights, send gate, optional manual redact `<details>`, expandable Claude payload inspector | `./helpers`, i18n, `ManualRedactPanel` | **Impressive** — transparency for judges/devtools |
 | `AnalysisView.tsx` | Tab container: Translation / Privacy / Voice / **Related documents** | sub-tabs, i18n | Layout glue |
-| `TranslationTab.tsx` | Side-by-side tokenized source/translation; validation failure panel; `ExplanationTts` with localized listen label | `ExplanationTts`, `PANEL_LABELS`, `./helpers` | Core results view |
+| `TranslationTab.tsx` | Side-by-side tokenized source/translation; **reinserted explanation text**; validation failure panel; `ExplanationTts` (tokenized listen-back) | `ExplanationTts`, `reinsert`, `PANEL_LABELS`, `./helpers` | Core results view |
 | `RelatedDocumentsTab.tsx` | Displays prefetched process + doc list from flow state (loading/error/empty i18n) | flow hook, i18n | Informational tab — no raw PII |
-| `VoiceTab.tsx` | Mic STT, question redaction preview, Claude Q&A, optional **auto-play answer** checkbox, TTS playback | `prepareVoiceQuestion`, `voice`, `validate`, `ExplanationTts`, i18n | **Impressive** — end-to-end voice privacy |
+| `VoiceTab.tsx` | Mic STT, question redaction preview, Claude Q&A; **what it says** tokenized, **what it means** reinserted; optional auto-play TTS (tokenized) | `prepareVoiceQuestion`, `reinsert`, `voice`, `validate`, `ExplanationTts`, i18n | **Impressive** — end-to-end voice privacy |
 | `ExplanationTts.tsx` | Play/pause TTS for tokenized explanation text; localized fallback-voice warning | `explanation-text`, `voice`, i18n | **Good** — manual listen + translated warnings |
 | `LoadingState.tsx` | Reusable spinner (inline / panel / overlay variants) | React | Small reusable component |
 | `motion.tsx` | `RiseIn` scroll/mount animations, `CountUp` for stats | React | Landing + workflow polish |

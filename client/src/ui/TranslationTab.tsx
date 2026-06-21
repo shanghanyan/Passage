@@ -1,4 +1,6 @@
+import { sectionLabelsForLanguage } from "../lib/explanation-text";
 import { LANGUAGES, panelLabelsForCode } from "../lib/languages";
+import { reinsertTokens } from "../lib/reinsert";
 import type { PassageFlow } from "../hooks/usePassageFlow";
 import { renderTokenHighlights } from "./helpers";
 import { ExplanationTts } from "./ExplanationTts";
@@ -6,6 +8,11 @@ import { ExplanationTts } from "./ExplanationTts";
 export function TranslationTab({ flow }: { flow: PassageFlow }) {
   const lang = LANGUAGES.find((l) => l.code === flow.langCode);
   const labels = panelLabelsForCode(flow.langCode);
+  const sectionLabels = sectionLabelsForLanguage(flow.targetLanguage);
+  const readableExplanation =
+    flow.explanationText && flow.redaction
+      ? reinsertTokens(flow.explanationText, flow.redaction.tokenMap)
+      : "";
 
   if (flow.validationFailure) {
     return (
@@ -59,6 +66,14 @@ export function TranslationTab({ flow }: { flow: PassageFlow }) {
           <div className="pane-body">
             {flow.redaction && renderTokenHighlights(flow.translatedTokens, flow.redaction.tokenMeta)}
           </div>
+          {readableExplanation && (
+            <div className="translation-explanation-block">
+              <div className="pane-header">
+                <span className="pane-tag">{sectionLabels.explanation}</span>
+              </div>
+              <div className="pane-body summary-text">{readableExplanation}</div>
+            </div>
+          )}
           {(flow.explanationText || flow.translatedTokens) && (
             <ExplanationTts
               claudeTokenizedText={flow.translatedTokens}

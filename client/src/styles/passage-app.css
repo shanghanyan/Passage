@@ -1278,6 +1278,14 @@ html {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+.translation-explanation-block {
+  border-top: 1px solid var(--border);
+}
+
+.translation-explanation-block .pane-header {
+  padding-top: 12px;
+}
+
 .explanation-tts-bar {
   margin-top: 0;
   border-top: 1px solid var(--border);

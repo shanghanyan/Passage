@@ -167,7 +167,7 @@ Create both services at [cloud.redis.io](https://cloud.redis.io) when you want m
 
 **Input:** Paste text, upload a **`.txt`** file (stays in-browser), or upload **`.pdf` / image** (extracted in-browser via pdf.js + Tesseract.js; server fallback only if client extraction fails). Synthetic demo documents are available for testing.
 
-**Output:** Plain-language translation + explanation in **11 languages** (English, Spanish, French, Chinese, Vietnamese, Korean, Portuguese, Arabic, Hindi, Tagalog, Ukrainian). UI shows **tokenized** text by default; raw values can be reinserted client-side from in-memory `tokenMap` for readability without changing Claude payloads (not enabled in demo UI). Voice follow-up questions; optional listen-back via TTS — all tokenized to external APIs. **Related documents** tab lists commonly associated immigration document types (redacted input only).
+**Output:** Plain-language translation + explanation in **11 languages** (English, Spanish, French, Chinese, Vietnamese, Korean, Portuguese, Arabic, Hindi, Tagalog, Ukrainian). The **translation column stays tokenized** for audit; the **explanation** and voice **“what it means”** panels reinsert names and dates from in-memory `tokenMap` for on-screen reading only (never sent to Claude or TTS). Optional listen-back via TTS still uses tokenized text to Deepgram. Voice follow-up questions go to Claude as redacted tokens. **Related documents** tab lists commonly associated immigration document types (redacted input only).
 
 **UI language:** Choose translation language on the **landing screen** before pasting. Site chrome, redaction review, tab labels, voice buttons, and TTS fallback warnings all follow that choice (11 locale packs under `client/src/i18n/`). Your choice is saved in `localStorage` so the connection-lost screen stays in the same language.
 
@@ -205,7 +205,7 @@ cd ../client
 npm run verify:all                    # validation, regex, redact, voice, TTS, upload, i18n, names
 npm run verify:demo-network           # Playwright — token-only API payloads (needs dev server)
 npm run verify:detection              # Playwright — ?detection-test harness
-npm run verify:tokenized-ui           # Playwright — no reinsertion in UI
+npm run verify:tokenized-ui           # Playwright — translation pane stays tokenized
 npm run verify:sentry-browser         # Playwright — fail-closed validation beat
 node scripts/verify-connection-lost.mjs     # Playwright — connection-lost UI (client only, no server)
 

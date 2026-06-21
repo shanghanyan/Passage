@@ -1,5 +1,5 @@
 /**
- * Tokenized translation UI after happy path (no reinsertion).
+ * Tokenized translation UI after happy path (translation pane stays tokenized; explanation may reinsert locally).
  * Run: npm run verify:tokenized-ui --prefix client
  */
 import { chromium } from "playwright";

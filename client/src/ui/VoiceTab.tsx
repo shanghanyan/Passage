@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { formatError } from "../lib/errors";
 import { sttLanguageFromCode } from "../lib/languages";
 import { prepareVoiceQuestion } from "../lib/prepare-voice-question";
+import { reinsertTokens } from "../lib/reinsert";
 import { askVoiceQuestion, startLiveTranscription } from "../lib/voice";
 import { validateVoiceAnswer } from "../lib/validate";
 import { Sentry } from "../lib/sentry";
@@ -171,6 +172,8 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
 
   const displayTranscript = [transcript, interim].filter(Boolean).join(interim && transcript ? " " : "");
   const transcriptPulse = useRiseOnChange(canUseVoice ? displayTranscript : "");
+  const readableMeans =
+    ttsText && flow.redaction ? reinsertTokens(ttsText, flow.redaction.tokenMap) : "";
 
   if (!canUseVoice) {
     return (
@@ -306,9 +309,9 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
                 <span className="micro-label">{t("voice.whatItMeans")}</span>
               </div>
               <div className="pane-body">
-                {ttsText ? (
+                {readableMeans ? (
                   <p className="summary-text" style={{ marginBottom: 12 }}>
-                    {ttsText}
+                    {readableMeans}
                   </p>
                 ) : (
                   <p className="notice">{t("voice.readBackPlaceholder")}</p>
