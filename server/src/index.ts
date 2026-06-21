@@ -1,7 +1,12 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
+import { initSentry } from "./lib/sentry.js";
+import { postRedactionSessionToken } from "./routes/redaction-session-token.js";
+import { postTranslate } from "./routes/translate.js";
 import { verifyClaudeHello, verifyRedis } from "./startup.js";
+
+initSentry();
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
@@ -13,13 +18,9 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-// Phase 0 stub — replaced with real Claude call in Phase 3
-app.post("/api/translate", (_req, res) => {
-  res.json({
-    translated_text:
-      "Phase 0 stub — your translated and explained document will appear here after Phase 3.",
-    trace_id: "phase-0-stub",
-  });
+app.post("/api/redaction-session-token", postRedactionSessionToken);
+app.post("/api/translate", (req, res) => {
+  void postTranslate(req, res);
 });
 
 async function main() {
