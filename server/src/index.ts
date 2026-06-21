@@ -1,8 +1,10 @@
 import "dotenv/config";
+import "./instrumentation.js";
 import cors from "cors";
 import express from "express";
 import { initSentry } from "./lib/sentry.js";
 import { postRedactionSessionToken } from "./routes/redaction-session-token.js";
+import { postScoreRedaction } from "./routes/score-redaction.js";
 import { postTranslate } from "./routes/translate.js";
 import { verifyClaudeHello, verifyRedis } from "./startup.js";
 
@@ -19,6 +21,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.post("/api/redaction-session-token", postRedactionSessionToken);
+app.post("/api/score-redaction", postScoreRedaction);
 app.post("/api/translate", (req, res) => {
   void postTranslate(req, res);
 });

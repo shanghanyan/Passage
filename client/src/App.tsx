@@ -6,6 +6,7 @@ import { detectPii } from "./lib/detect";
 import { scanForLeakage } from "./lib/patterns";
 import { redact } from "./lib/redact";
 import { mintRedactionSession, writeTokenMap } from "./lib/redis";
+import { computeRecall, reportRedactionScore } from "./lib/score-redaction";
 import { Sentry } from "./lib/sentry";
 import type { DetectedSpan, RedactionResult, TranslateResponse } from "./lib/types";
 import { validateAndReinsert } from "./lib/validate";
@@ -26,6 +27,7 @@ export default function App() {
   const [reinsertedText, setReinsertedText] = useState<string | null>(null);
   const [fallback, setFallback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lastRecall, setLastRecall] = useState<number | null>(null);
 
   const selectedDoc = SYNTHETIC_DOCS.find((d) => d.id === selectedDocId);
 
@@ -59,15 +61,31 @@ export default function App() {
       console.log("[Passage Phase 1] Detected spans:", spans);
 
       const result = redact(rawText, spans);
+      const newSessionId = crypto.randomUUID();
       setRedaction(result);
-      setSessionId(crypto.randomUUID());
+      setSessionId(newSessionId);
       setPhase("preview");
+
+      if (selectedDoc?.labeledSpans.length) {
+        const recall = computeRecall(spans, selectedDoc.labeledSpans);
+        setLastRecall(recall);
+        console.log(`[Passage Phase 5] Recall for ${selectedDoc.id}: ${(recall * 100).toFixed(0)}%`);
+        void reportRedactionScore({
+          docId: selectedDoc.id,
+          sessionId: newSessionId,
+          recall,
+          detectedCount: spans.length,
+          labeledCount: selectedDoc.labeledSpans.length,
+        }).catch((err) => console.warn("Phoenix score report failed:", err));
+      } else {
+        setLastRecall(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Detection failed");
     } finally {
       setDetecting(false);
     }
-  }, [rawText]);
+  }, [rawText, selectedDoc]);
 
   const sendForTranslation = async () => {
     if (!redaction) return;
@@ -191,6 +209,12 @@ export default function App() {
       {redaction && phase !== "input" && (
         <>
           <ScrubbedPreview redacted={redaction.redacted} spans={detectedSpans} />
+          {lastRecall !== null && selectedDoc && (
+            <p className="hint recall-hint">
+              Redaction recall vs hand labels: <strong>{(lastRecall * 100).toFixed(0)}%</strong> — logged to
+              Phoenix as <code>redaction-check</code>
+            </p>
+          )}
 
           <section className="panel">
             <button

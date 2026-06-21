@@ -152,7 +152,9 @@ button:disabled {
   background: #fffbfa;
 }
 
-.result-failure h2 {
-  color: #b42318;
-  margin-top: 0;
+.recall-hint code {
+  font-size: 0.85em;
+  background: #f3f4f6;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
 }

@@ -1,0 +1,6 @@
+services:
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    ports:
+      - "6006:6006"
+    # Self-hosted — no API keys needed. UI at http://localhost:6006

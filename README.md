@@ -46,11 +46,66 @@ All private keys live here and are gitignored:
 | `ANTHROPIC_API_KEY` | Claude API |
 | `REDIS_URL` | Redis connection |
 | `SENTRY_DSN` | Server-side error monitoring |
-| `DEEPGRAM_API_KEY` | Voice transcription / TTS |
-| `ARIZE_API_KEY` | Hosted Arize only; leave blank for self-hosted Phoenix |
-| `ARIZE_SPACE_KEY` | Same as above |
+| `DEEPGRAM_API_KEY` | Voice transcription / TTS (Phase 6) |
+| `PHOENIX_COLLECTOR_ENDPOINT` | Self-hosted Phoenix OTLP URL (default `http://localhost:6006`) |
+| `PHOENIX_PROJECT_NAME` | Phoenix project name (default `immigration-redaction-demo`) |
+| `PHOENIX_API_KEY` | Phoenix Cloud only — leave blank for Docker |
+| `ARIZE_API_KEY` / `ARIZE_SPACE_KEY` | Legacy hosted Arize AX — **not** used by self-hosted Phoenix |
 
 Copy and fill in values locally — never commit this file.
+
+## Phase 5 — Arize Phoenix (observability)
+
+Self-hosted Phoenix is the default (one Docker container). No `ARIZE_API_KEY` needed.
+
+### 1. Start Phoenix
+
+```bash
+docker compose -f docker-compose.phoenix.yml up -d
+```
+
+Open **http://localhost:6006** — keep this tab open for the demo.
+
+### 2. Server env (already in `server/.env.example`)
+
+```bash
+PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006
+PHOENIX_PROJECT_NAME=immigration-redaction-demo
+# PHOENIX_API_KEY=          # only if using Phoenix Cloud instead of Docker
+```
+
+Restart the server after adding these (instrumentation loads at startup).
+
+### 3. Score the synthetic test set
+
+**Batch (regex baseline, no browser):**
+
+```bash
+cd server
+npm run score:redaction              # run 1
+npm run score:redaction -- run-after-fix   # run 2 — shows recall trend in UI
+```
+
+**Live (browser, includes NER):** load each synthetic doc → **Detect & redact**. Recall is computed locally and posted to Phoenix as a `redaction-check` span (metrics only — no raw PII).
+
+### 4. What to show in the demo
+
+In Phoenix → project `immigration-redaction-demo`:
+
+- **Traces** tab: Claude `messages.create` spans (auto-instrumented)
+- Filter span name **`redaction-check`** or attribute **`redaction.doc_id`**
+- Compare **`redaction.recall`** across two `redaction.run_id` values (before/after a detector fix)
+
+### Phoenix Cloud (optional alternative to Docker)
+
+If you use [Phoenix Cloud](https://app.phoenix.arize.com) instead of Docker:
+
+```bash
+PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com/s/<your-space>
+PHOENIX_API_KEY=<your-phoenix-api-key>
+```
+
+`ARIZE_API_KEY` / `ARIZE_SPACE_KEY` are for **Arize AX** (production ML platform), not self-hosted Phoenix — leave them blank for this hackathon.
 
 ### Client (`/client/.env.local`)
 
