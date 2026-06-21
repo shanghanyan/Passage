@@ -18,6 +18,18 @@ export function PassageApp() {
   useLauncherSession();
 
   useEffect(() => {
+    document.documentElement.lang = flow.uiLocale;
+    document.documentElement.dir = flow.uiLocale === "ar" ? "rtl" : "ltr";
+  }, [flow.uiLocale]);
+
+  useEffect(() => {
+    if (flow.phase !== "preview" && flow.phase !== "edit") return;
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
+  }, [flow.phase]);
+
+  useEffect(() => {
     const nav = document.getElementById("mainNav");
     if (!nav) return;
 
@@ -69,16 +81,16 @@ export function PassageApp() {
     return (
       <div className="passage-shell passage-workflow">
         <nav className="nav" id="mainNav">
-          <div className="nav-row nav-row--swapped">
-            {flow.phase !== "input" && flow.phase !== "edit" && (
-              <button type="button" className="nav-cta nav-cta--left" onClick={flow.startOver}>
-                <i className="ti ti-file-plus" /> {t("nav.newDocument")}
-              </button>
-            )}
-            <button type="button" className="nav-logo nav-logo--right" onClick={flow.startOver} style={{ border: "none", background: "none" }}>
+          <div className="nav-row">
+            <button type="button" className="nav-logo" onClick={flow.startOver} style={{ border: "none", background: "none" }}>
               <div className="nav-cross">✛</div>
               <div className="nav-wordmark">PASSAGE</div>
             </button>
+            {flow.phase !== "input" && (
+              <button type="button" className="nav-cta nav-cta--right" onClick={flow.startOver}>
+                <i className="ti ti-file-plus" /> {t("nav.newDocument")}
+              </button>
+            )}
           </div>
         </nav>
         <main className="passage-main workflow-main">
@@ -91,16 +103,16 @@ export function PassageApp() {
   return (
     <div className="passage-shell passage-workflow">
       <nav className="nav" id="mainNav">
-        <div className="nav-row nav-row--swapped">
-          {flow.phase !== "input" && flow.phase !== "edit" && (
-            <button type="button" className="nav-cta nav-cta--left" onClick={flow.startOver}>
-              <i className="ti ti-file-plus" /> {t("nav.newDocument")}
-            </button>
-          )}
-          <button type="button" className="nav-logo nav-logo--right" onClick={flow.startOver} style={{ border: "none", background: "none" }}>
+        <div className="nav-row">
+          <button type="button" className="nav-logo" onClick={flow.startOver} style={{ border: "none", background: "none" }}>
             <div className="nav-cross">✛</div>
             <div className="nav-wordmark">PASSAGE</div>
           </button>
+          {flow.phase !== "input" && (
+            <button type="button" className="nav-cta nav-cta--right" onClick={flow.startOver}>
+              <i className="ti ti-file-plus" /> {t("nav.newDocument")}
+            </button>
+          )}
         </div>
         <div className="workflow-phase-strip">
           {(["input", "preview", "translating", "done"] as const).map((step) => {
@@ -138,12 +150,10 @@ export function PassageApp() {
           {flow.phase === "edit" && <EditRedactPhase flow={flow} />}
 
           {flow.phase === "preview" && (
-            <section className="workflow-card rise-in-group">
+            <section className="workflow-card rise-in-group" id="scrubbed-preview">
               <RiseIn className="workflow-card-head">
-                <h2>Scrubbed preview</h2>
-                <p className="notice">
-                  Tokens replace real values. Only token text reaches Claude — tap a highlight to verify detection.
-                </p>
+                <h2>{t("privacy.title")}</h2>
+                <p className="notice">{t("privacy.notice")}</p>
               </RiseIn>
               <RiseIn delay={0.17}>
                 <PrivacyTab flow={flow} />
@@ -158,16 +168,16 @@ export function PassageApp() {
       {flow.detecting && (
         <LoadingState
           variant="overlay"
-          title="Scanning for sensitive information"
-          subtitle="Loading on-device NER and running regex detectors — names, A-numbers, SSNs, addresses, and dates. Nothing is sent over the network."
+          title={t("loading.scanning.title")}
+          subtitle={t("loading.scanning.subtitle")}
         />
       )}
 
       {flow.phase === "translating" && (
         <LoadingState
           variant="overlay"
-          title="Translating with Claude"
-          subtitle="Sending redacted tokens only and validating Claude's response before display."
+          title={t("loading.translating.title")}
+          subtitle={t("loading.translating.subtitle")}
         />
       )}
 

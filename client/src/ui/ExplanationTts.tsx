@@ -27,7 +27,7 @@ export function ExplanationTts({
   targetLanguage,
   langCode,
   uiLocale,
-  label = "Listen to explanation",
+  label,
   autoPlay = false,
   ttsText,
 }: ExplanationTtsProps) {
@@ -36,13 +36,14 @@ export function ExplanationTts({
   const [error, setError] = useState<string | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
   const autoPlayedRef = useRef(false);
-  const { t } = useUiLocale(uiLocale);
+  const { t, tf } = useUiLocale(uiLocale);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const blobUrlRef = useRef<string | null>(null);
   const explanation = ttsText?.trim() || extractExplanationText(claudeTokenizedText);
   const voice = ttsVoiceForLanguage(targetLanguage);
   const usesEnglishVoice = !hasNativeTtsVoice(langCode);
+  const listenLabel = label ?? t("tts.listenExplanation");
 
   const cleanupAudio = useCallback(() => {
     if (audioRef.current) {
@@ -60,7 +61,7 @@ export function ExplanationTts({
 
   const ensureAudioLoaded = useCallback(async () => {
     if (!explanation.trim()) {
-      throw new Error("No explanation text to read aloud");
+      throw new Error(t("tts.noExplanation"));
     }
     if (audioRef.current && blobUrlRef.current) return;
 
@@ -79,7 +80,7 @@ export function ExplanationTts({
     } finally {
       setLoading(false);
     }
-  }, [explanation, targetLanguage]);
+  }, [explanation, targetLanguage, t]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -115,6 +116,8 @@ export function ExplanationTts({
 
   if (!explanation.trim()) return null;
 
+  const statusLabel = loading ? t("tts.loadingAudio") : playing ? t("tts.playing") : listenLabel;
+
   return (
     <div className="voice-bar explanation-tts-bar">
       <button
@@ -123,7 +126,7 @@ export function ExplanationTts({
         onClick={() => void handlePlayPause()}
         disabled={loading}
         aria-pressed={playing}
-        title={label}
+        title={listenLabel}
       >
         {loading ? (
           <span className="spinner" style={{ width: 14, height: 14 }} />
@@ -132,16 +135,15 @@ export function ExplanationTts({
         )}
       </button>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="voice-label">{loading ? "Loading audio…" : playing ? "Playing" : label}</div>
+        <div className="voice-label">{statusLabel}</div>
         <div style={{ fontSize: 11, color: "var(--cream-faint)", marginTop: 2 }}>
           {usesEnglishVoice ? (
             <span className="tts-fallback-note">
-              <i className="ti ti-alert-circle" /> English voice ({voice}) — text stays in {targetLanguage}
+              <i className="ti ti-alert-circle" />{" "}
+              {tf("tts.englishVoiceFallback", { voice, language: targetLanguage })}
             </span>
           ) : (
-            <span>
-              {voice} · explanation only (tokenized)
-            </span>
+            <span>{tf("tts.nativeVoiceNote", { voice })}</span>
           )}
         </div>
       </div>
@@ -167,7 +169,7 @@ export function ExplanationTts({
         ))}
       </div>
       <details className="voice-tts-details">
-        <summary>TTS payload</summary>
+        <summary>{t("tts.payloadSummary")}</summary>
         <pre className="voice-tts-payload">{explanation}</pre>
       </details>
     </div>

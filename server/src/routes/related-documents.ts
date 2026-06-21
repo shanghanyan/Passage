@@ -3,7 +3,7 @@ import { listRelatedDocuments } from "../lib/related-documents.js";
 import { captureExternalError } from "../lib/sentry.js";
 
 export async function postRelatedDocuments(req: Request, res: Response): Promise<void> {
-  const { redacted_text, session_id } = req.body ?? {};
+  const { redacted_text, session_id, target_language } = req.body ?? {};
 
   if (typeof redacted_text !== "string" || !redacted_text.trim()) {
     res.status(400).json({ ok: false, error: "redacted_text required" });
@@ -11,9 +11,10 @@ export async function postRelatedDocuments(req: Request, res: Response): Promise
   }
 
   const sessionId = typeof session_id === "string" ? session_id : "unknown";
+  const targetLanguage = typeof target_language === "string" && target_language.trim() ? target_language.trim() : "English";
 
   try {
-    const result = await listRelatedDocuments(redacted_text.trim());
+    const result = await listRelatedDocuments(redacted_text.trim(), targetLanguage);
     res.json({
       ok: true,
       process: result.process,

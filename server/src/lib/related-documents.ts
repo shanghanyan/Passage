@@ -13,7 +13,7 @@ export interface RelatedDocumentsResult {
   traceId: string;
 }
 
-const RELATED_DOCS_SYSTEM = `You analyze redacted U.S. immigration documents for informational display only.
+const RELATED_DOCS_SYSTEM = (targetLanguage: string) => `You analyze redacted U.S. immigration documents for informational display only.
 
 The input uses placeholder tokens like ⟦PII:NAME:1⟧ — never guess what they represent.
 
@@ -21,12 +21,16 @@ Return ONLY valid JSON in this exact shape:
 {"process":"Name of the immigration process","documents":[{"name":"Document name","description":"One sentence in third person describing what this document type is and why it is commonly part of this process","status":"Common requirement"}]}
 
 Rules:
+- Write all user-visible strings (process name, document names, descriptions, status labels) in ${targetLanguage}.
 - Third person only ("Applicants often…", "This notice typically…"). Never "you should" or "you must file".
 - Descriptive only — no legal advice, no telling anyone what to do.
 - List 5–8 document types commonly associated with this kind of process.
 - Note requirements vary in descriptions where appropriate.`;
 
-export async function listRelatedDocuments(redactedText: string): Promise<RelatedDocumentsResult> {
+export async function listRelatedDocuments(
+  redactedText: string,
+  targetLanguage = "English",
+): Promise<RelatedDocumentsResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
 
@@ -36,11 +40,11 @@ export async function listRelatedDocuments(redactedText: string): Promise<Relate
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 1200,
-      system: RELATED_DOCS_SYSTEM,
+      system: RELATED_DOCS_SYSTEM(targetLanguage),
       messages: [
         {
           role: "user",
-          content: `Identify the process and commonly associated document types for this redacted document:\n\n${redactedText}`,
+          content: `Identify the process and commonly associated document types for this redacted document. Respond in ${targetLanguage}.\n\n${redactedText}`,
         },
       ],
     });

@@ -2,7 +2,7 @@
 
 **UC Berkeley AI Hackathon 2026 — World Track**
 
-Paste an immigration letter, get it translated and explained in your language, ask follow-up questions by voice — while names, A-numbers, SSNs, dates of birth, passport numbers, and addresses are stripped **before anything reaches Claude**, then swapped back in only on your own screen at the end.
+Paste an immigration letter, get it translated and explained in your language, ask follow-up questions by voice — while names, A-numbers, SSNs, dates of birth, passport numbers, and addresses are stripped **before anything reaches Claude**. Translation and read-back stay **tokenized** end-to-end; raw values never leave your browser.
 
 The differentiator isn't "we use Claude to translate." It's that **redaction is a hard architectural boundary** — with validation that fails closed, error monitoring that catches real failures, and measurable detection accuracy. Privacy you can verify in devtools, not just in a policy.
 
@@ -62,7 +62,7 @@ npm run launch -- --cloud            # Arize AX Cloud traces
 # npm run launch -- --local          # Local Phoenix (Docker) instead
 ```
 
-Browser opens at **http://localhost:5173**. **Close that tab** when you are done — the launcher stops server and client automatically.
+Browser opens at **http://localhost:5173**. Pick your **translation language** on the landing screen first — the whole UI (nav, redaction review, tabs, voice controls, warnings) follows that choice. **Close that tab** when you are done — the launcher stops server and client automatically.
 
 Logs if something fails: `.passage-launch.log`
 
@@ -136,12 +136,14 @@ flowchart TB
   subgraph server [Passage Server]
     Mint["/api/redaction-session-token"]
     VQ["/api/voice/question"]
+    RD["/api/related-documents"]
     OTEL["OTEL → Phoenix or Arize AX"]
   end
 
   Detect --> Send
   Send --> Mint
   Mint --> Session
+  Send --> RD
   VQ --> AM
   VQ --> LC
   VQ --> Claude[Claude API]
@@ -159,9 +161,11 @@ flowchart TB
 
 ## What Passage does
 
-**Input:** Paste text from an RFE, biometrics notice, EAD receipt, NTA, or similar. Text only — no file upload.
+**Input:** Paste text, upload a **`.txt`** file (stays in-browser), or upload **`.pdf` / image** (server-side text extraction with an explicit privacy acknowledgment). Synthetic demo documents are available for testing.
 
-**Output:** Plain-language translation + explanation in 10 languages (Spanish, French, Chinese, Vietnamese, Korean, Portuguese, Arabic, Hindi, Tagalog, Ukrainian). Voice follow-up questions, read back via TTS — all tokenized.
+**Output:** Plain-language translation + explanation in 10 languages (Spanish, French, Chinese, Vietnamese, Korean, Portuguese, Arabic, Hindi, Tagalog, Ukrainian). Voice follow-up questions; optional listen-back via TTS — all tokenized. **Related documents** tab lists commonly associated immigration document types for the detected process (Claude, redacted input only, in your chosen language).
+
+**UI language:** Choose translation language on the **landing screen** before pasting. Site chrome, redaction review, tab labels, voice buttons, and TTS fallback warnings all follow that choice (11 locale packs under `client/src/i18n/`).
 
 **Scope line:** Explains what a section is *asking for*. Does **not** tell anyone what to write in response.
 
@@ -194,7 +198,13 @@ flowchart TB
 ### Translation
 - Claude Sonnet 4.6 — preserve tokens, explain sections, no legal advice
 - Side-by-side redacted source + tokenized translation (no reinsertion)
+- Manual **Listen** control on explanation TTS; localized native-voice vs English-fallback warning per language
 - Fail-closed blocked state
+
+### Related documents
+- After translation, **prefetches** associated document types in the background (no wait for TTS)
+- Claude identifies the immigration process + 5–8 commonly linked document types from **redacted text only**
+- Responses localized via `target_language` (matches UI / translation picker)
 
 ### Voice
 - Deepgram Nova-3 STT in the **document target language** (client token or server-proxy — key never in browser)
@@ -202,8 +212,8 @@ flowchart TB
 - Voice answers validated fail-closed; display and TTS stay tokenized
 - Multi-turn Q&A via **Redis Agent Memory** when configured
 - **LangCache** instant answers for repeated FAQ on same doc
-- Explanation-only TTS read-back on Translation and Voice tabs (play/pause)
-- Mic disclaimer: *"Please type any ID numbers — don't say them out loud"*
+- Explanation-only TTS read-back on Translation and Voice tabs (manual play; optional **auto-play answer** checkbox on Voice tab)
+- Mic disclaimer: *"Please type any ID numbers — don't say them out loud"* (localized)
 
 #### Voice language support (STT vs TTS)
 
@@ -213,7 +223,7 @@ flowchart TB
 | **TTS (read-back)** | **Native Aura-2 voice:** Spanish, French, Portuguese (plus de/it/ja/nl voice IDs when those languages are added to the picker) |
 | **TTS fallback** | **English voice reads target-language text:** Chinese, Vietnamese, Korean, Arabic, Hindi, Tagalog, Ukrainian |
 
-Deepgram Nova-3 transcribes all offered languages. Aura-2 TTS does not yet ship native voices for every language we translate into — for the fallback languages above, listen-back still works but uses an English voice model on tokenized explanation text (no raw PII). Translation and voice **answers** are still in the target language; only the TTS accent is English until Deepgram adds those voices.
+Deepgram Nova-3 transcribes all offered languages. Aura-2 TTS does not yet ship native voices for every language we translate into — for the fallback languages above, listen-back still works but uses an English voice model on tokenized explanation text (no raw PII). The fallback notice is **translated in the UI** (e.g. Chinese users see the warning in Chinese). Translation and voice **answers** are still in the target language; only the TTS accent is English until Deepgram adds those voices.
 
 ### Observability (Phoenix + Arize AX)
 - Dual-target export — choose at launch
@@ -246,6 +256,7 @@ npm run verify:demo-network           # Playwright — token-only API payloads (
 npm run verify:detection              # Playwright — ?detection-test harness
 npm run verify:tokenized-ui           # Playwright — no reinsertion in UI
 npm run verify:sentry-browser         # Playwright — fail-closed validation beat
+node scripts/verify-ui-locale-default.mjs   # i18n: landing picker + locale follows langCode
 
 npm run score:redaction -- run-before-fix
 npm run score:redaction -- run-after-fix   # from server/ — compare trend in observability UI
@@ -254,6 +265,8 @@ npm run score:redaction -- run-after-fix   # from server/ — compare trend in o
 Filter observability UI by span name **`redaction-check`** or attribute **`redaction.run_id`**.
 
 Failures logged in [`08-error-log.md`](08-error-log.md).
+
+See [`PROJECT_ARCHITECTURE.md`](PROJECT_ARCHITECTURE.md) for the full file reference, data-flow diagrams, and technical assessment.
 
 ---
 
@@ -272,16 +285,20 @@ See [`09-demo-script.md`](09-demo-script.md) for the timed 5-minute rehearsal (t
 ## Project structure
 
 ```
-launch.mjs / Launch Passage.app     — one-click launcher with observability picker + Stop panel
+launch.mjs / Launch Passage.app     — one-click launcher with observability picker + auto-shutdown
 scripts/fix-launch-app.sh           — macOS Gatekeeper fix (sign + remove quarantine)
 /client
-  src/ui/                           — workflow shell (paste → privacy review → results tabs)
-  src/styles/passage-v2.css         — extracted from passage V2 Draft.html
+  src/i18n/                         — UI strings (11 locales), workflow + voice/TTS packs
+  src/ui/                           — landing scroll, language picker, redaction, results tabs
+  src/hooks/usePassageFlow.ts       — phase state machine + related-docs prefetch
+  src/styles/passage-v2.css         — design system from passage V2 Draft.html
 /server
+  src/lib/related-documents.ts      — Claude → process + associated doc types (localized)
   src/lib/observability/            — Phoenix + Arize AX dual export
   src/lib/agent-memory.ts           — Redis Agent Memory REST client
   src/lib/lang-cache.ts             — Redis LangCache REST client
 docker-compose.phoenix.yml          — local Phoenix container
+PROJECT_ARCHITECTURE.md             — full file reference + technical assessment
 ```
 
 ---
@@ -293,6 +310,8 @@ GET  /api/health                    — startup probe (used by launcher)
 POST /api/redaction-session-token   scoped Upstash credentials (no PII)
 POST /api/translate                 redacted text → translated tokens
 POST /api/score-redaction           recall metrics → observability span
+POST /api/extract-document          PDF/image → text (server-side; user ack in UI)
+POST /api/related-documents         redacted text → process + associated doc types
 POST /api/deepgram-token            short-lived client token or server-proxy
 POST /api/voice/question            transcript + redacted context → answer + TTS text
 POST /api/voice/speak               PII-free text → MP3

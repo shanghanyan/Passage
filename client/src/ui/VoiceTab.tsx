@@ -6,12 +6,14 @@ import { askVoiceQuestion, startLiveTranscription } from "../lib/voice";
 import { validateVoiceAnswer } from "../lib/validate";
 import { Sentry } from "../lib/sentry";
 import type { PassageFlow } from "../hooks/usePassageFlow";
+import { useUiLocale } from "../i18n/useUiLocale";
 import { ExplanationTts } from "./ExplanationTts";
 import { renderTokenHighlights } from "./helpers";
 import { RiseIn, useRiseOnChange } from "./motion";
 import { LoadingState } from "./LoadingState";
 
 export function VoiceTab({ flow }: { flow: PassageFlow }) {
+  const { t, tf } = useUiLocale(flow.uiLocale);
   const [connecting, setConnecting] = useState(false);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -22,6 +24,7 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
   const [voiceMeta, setVoiceMeta] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [autoListen, setAutoListen] = useState(false);
   const stopRef = useRef<(() => void | Promise<void>) | null>(null);
   const [autoPlayAnswer, setAutoPlayAnswer] = useState(false);
 
@@ -98,7 +101,7 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
     const rawQuestion = [transcript, interim].filter(Boolean).join(" ").trim();
     if (!flow.redaction || !canUseVoice) return;
     if (!rawQuestion) {
-      setVoiceError("Type or speak a question first.");
+      setVoiceError(t("voice.typeQuestionFirst"));
       return;
     }
     setBusy(true);
@@ -143,7 +146,7 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
 
       setAnswer(validation.text);
       setTtsText(result.tts_text);
-      setAutoPlayAnswer(true);
+      setAutoPlayAnswer(autoListen);
       const meta: string[] = [`STT: ${sttLanguage}`];
       if (result.from_cache) meta.push("LangCache hit");
       if (result.memory_turns) meta.push(`${result.memory_turns} prior turn(s)`);
@@ -155,7 +158,7 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
     } finally {
       setBusy(false);
     }
-  }, [flow, transcript, interim, canUseVoice, listening, connecting, sttLanguage]);
+  }, [flow, transcript, interim, canUseVoice, listening, connecting, sttLanguage, autoListen, t]);
 
   const displayTranscript = [transcript, interim].filter(Boolean).join(interim && transcript ? " " : "");
   const transcriptPulse = useRiseOnChange(canUseVoice ? displayTranscript : "");
@@ -163,8 +166,7 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
   if (!canUseVoice) {
     return (
       <p className="notice">
-        <i className="ti ti-info-circle" /> Complete translation first — voice questions use the redacted document
-        context only.
+        <i className="ti ti-info-circle" /> {t("voice.completeFirst")}
       </p>
     );
   }
@@ -186,28 +188,40 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
       {isLive && (
         <RiseIn>
           <div className="voice-mic-disclaimer voice-mic-disclaimer-live">
-            <strong>Please type any ID numbers — don&apos;t say them out loud.</strong> Speak in {lang}. Audio goes to
-            Deepgram only; your question is redacted before Claude.
+            <strong>{t("voice.micDisclaimerTitle")}</strong>{" "}
+            {tf("voice.micDisclaimerBody", { language: lang })}
           </div>
         </RiseIn>
       )}
 
       <RiseIn delay={0.17} className={`summary-card voice-panel voice-panel-stable${isLive ? " voice-panel-live" : ""}`}>
         <div className="summary-level">
-          <span className="micro-label micro-label--inline">Ask about this letter</span>
+          <span className="micro-label micro-label--inline">{t("voice.askAboutLetter")}</span>
           {isLive && <span className="mic-pulse" aria-hidden="true" />}
-          {connecting && <span className="voice-status-chip">Connecting…</span>}
-          {listening && <span className="voice-status-chip voice-status-chip-live">Listening · {sttLanguage}</span>}
+          {connecting && <span className="voice-status-chip">{t("voice.connecting")}</span>}
+          {listening && (
+            <span className="voice-status-chip voice-status-chip-live">
+              {tf("voice.listening", { code: sttLanguage })}
+            </span>
+          )}
         </div>
 
         <p className="notice" style={{ marginBottom: 16 }}>
-          Speak or type in <strong>{lang}</strong>. Try a general question about what the letter is asking for.
+          {tf("voice.speakOrType", { language: lang })}
         </p>
+
+        <label className="voice-auto-listen">
+          <input type="checkbox" checked={autoListen} onChange={(e) => setAutoListen(e.target.checked)} />
+          <span>
+            <strong>{t("voice.autoListen")}</strong>
+            <span className="voice-auto-listen__hint">{t("voice.autoListenHint")}</span>
+          </span>
+        </label>
 
         <div className="tool-actions" style={{ marginBottom: 16 }}>
           <button type="button" className={micBtnClass} onClick={() => void toggleMic()} disabled={busy}>
             <i className={`ti ${isLive ? "ti-player-stop" : "ti-microphone"}`} />
-            {connecting ? "Connecting…" : listening ? "Stop mic" : "Start mic"}
+            {connecting ? t("voice.connecting") : listening ? t("voice.stopMic") : t("voice.startMic")}
           </button>
           <button
             type="button"
@@ -217,18 +231,19 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
           >
             {busy ? (
               <>
-                <span className="spinner" /> Asking…
+                <span className="spinner" /> {t("voice.asking")}
               </>
             ) : (
               <>
-                <i className="ti ti-send" /> Send question
+                <i className="ti ti-send" /> {t("voice.sendQuestion")}
               </>
             )}
           </button>
         </div>
 
         <label className="micro-label" htmlFor="voice-transcript">
-          Transcript <span style={{ opacity: 0.6 }}>(local · {sttLanguage})</span>
+          {t("voice.transcriptLabel")}{" "}
+          <span style={{ opacity: 0.6 }}>{tf("voice.transcriptLocal", { code: sttLanguage })}</span>
         </label>
         <div className={`voice-transcript-wrap ${transcriptPulse}`.trim()}>
           <textarea
@@ -240,13 +255,13 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
               setTranscript(e.target.value);
               setInterim("");
             }}
-            placeholder={`Speak or type your question in ${lang}…`}
+            placeholder={tf("voice.transcriptPlaceholder", { language: lang })}
           />
         </div>
 
         {redactedPreview && (
           <RiseIn className="voice-scrubbed-preview">
-            <span className="micro-label">Scrubbed question sent to Claude</span>
+            <span className="micro-label">{t("voice.scrubbedQuestion")}</span>
             <div className="voice-scrubbed-text">{renderTokenHighlights(redactedPreview, flow.redaction?.tokenMeta)}</div>
           </RiseIn>
         )}
@@ -256,8 +271,8 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
         {busy && (
           <LoadingState
             variant="panel"
-            title="Processing your question"
-            subtitle="Redacting in browser, then Claude answers from tokenized context only."
+            title={t("voice.processingTitle")}
+            subtitle={t("voice.processingSubtitle")}
           />
         )}
 
@@ -273,13 +288,13 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
           <RiseIn className="split voice-answer-split">
             <div className="doc-pane">
               <div className="pane-header">
-                <span className="micro-label">What it says</span>
+                <span className="micro-label">{t("voice.whatItSays")}</span>
               </div>
               <div className="summary-text pane-body">{renderTokenHighlights(answer, flow.redaction.tokenMeta)}</div>
             </div>
             <div className="doc-pane">
               <div className="pane-header">
-                <span className="micro-label">What it means</span>
+                <span className="micro-label">{t("voice.whatItMeans")}</span>
               </div>
               <div className="pane-body">
                 {ttsText ? (
@@ -287,7 +302,7 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
                     {ttsText}
                   </p>
                 ) : (
-                  <p className="notice">Read-back text will appear here when available.</p>
+                  <p className="notice">{t("voice.readBackPlaceholder")}</p>
                 )}
                 <ExplanationTts
                   claudeTokenizedText={answer}
@@ -295,7 +310,7 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
                   targetLanguage={flow.targetLanguage}
                   langCode={flow.langCode}
                   uiLocale={flow.uiLocale}
-                  label="Listen to answer"
+                  label={t("voice.listenToAnswer")}
                   autoPlay={autoPlayAnswer}
                 />
               </div>

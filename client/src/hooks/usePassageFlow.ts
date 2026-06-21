@@ -16,16 +16,20 @@ import { validateTranslationOutput } from "../lib/validate";
 export type AppPhase = "input" | "edit" | "preview" | "translating" | "done" | "blocked";
 export type AnalysisTab = "privacy" | "translation" | "voice" | "documents";
 
-import type { UiLocale } from "../i18n/strings";
+export interface RelatedDocumentItem {
+  name: string;
+  description: string;
+  status: string;
+}
+
+import { uiLocaleFromLangCode } from "../i18n/strings";
 
 export function usePassageFlow() {
   const [activeTab, setActiveTab] = useState<AnalysisTab>("translation");
   const [rawText, setRawText] = useState("");
   const [selectedDocId, setSelectedDocId] = useState("");
-  /** Document translation target — independent from UI chrome language. */
+  /** Document translation target — UI chrome follows this language. */
   const [langCode, setLangCode] = useState("en");
-  /** UI chrome language (buttons, labels, nav). Always English on fresh load. */
-  const [uiLocale] = useState<UiLocale>("en");
   const [detectedSpans, setDetectedSpans] = useState<DetectedSpan[]>([]);
   const [redaction, setRedaction] = useState<RedactionResult | null>(null);
   const [sessionId, setSessionId] = useState("");
@@ -45,9 +49,14 @@ export function usePassageFlow() {
   const [connectionLost, setConnectionLost] = useState(false);
   const [connectionLostMessage, setConnectionLostMessage] = useState<string | null>(null);
   const [showTool, setShowTool] = useState(false);
+  const [relatedDocsProcess, setRelatedDocsProcess] = useState<string | null>(null);
+  const [relatedDocuments, setRelatedDocuments] = useState<RelatedDocumentItem[]>([]);
+  const [relatedDocsLoading, setRelatedDocsLoading] = useState(false);
+  const [relatedDocsError, setRelatedDocsError] = useState<string | null>(null);
 
   const selectedDoc = SYNTHETIC_DOCS.find((d) => d.id === selectedDocId);
   const targetLanguage = languageNameFromCode(langCode);
+  const uiLocale = uiLocaleFromLangCode(langCode);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -60,6 +69,52 @@ export function usePassageFlow() {
     setFallback(null);
     setValidationFailure(null);
     setError(null);
+    setRelatedDocsProcess(null);
+    setRelatedDocuments([]);
+    setRelatedDocsLoading(false);
+    setRelatedDocsError(null);
+  }, []);
+
+  const prefetchRelatedDocuments = useCallback(async (redactedText: string, sid: string, language: string) => {
+    setRelatedDocsLoading(true);
+    setRelatedDocsError(null);
+    setRelatedDocsProcess(null);
+    setRelatedDocuments([]);
+
+    try {
+      const res = await apiFetch("/api/related-documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          redacted_text: redactedText,
+          session_id: sid,
+          target_language: language,
+        }),
+      });
+
+      const data = (await res.json()) as {
+        ok: boolean;
+        process?: string;
+        documents?: RelatedDocumentItem[];
+        error?: string;
+      };
+
+      if (!res.ok || !data.ok || !data.documents) {
+        setRelatedDocsError("failed");
+        return;
+      }
+
+      setRelatedDocsProcess(data.process ?? null);
+      setRelatedDocuments(data.documents);
+    } catch (err) {
+      if (err instanceof ConnectionLostError) {
+        setConnectionLost(true);
+        return;
+      }
+      setRelatedDocsError("failed");
+    } finally {
+      setRelatedDocsLoading(false);
+    }
   }, []);
 
   const startOver = useCallback(() => {
@@ -299,6 +354,7 @@ export function usePassageFlow() {
       setPhase("done");
       setActiveTab("translation");
       showToast("Translation complete");
+      void prefetchRelatedDocuments(redaction.redacted, sessionId, targetLanguage);
     } catch (err) {
       if (err instanceof ConnectionLostError) {
         setConnectionLost(true);
@@ -310,7 +366,7 @@ export function usePassageFlow() {
       setError(err instanceof Error ? err.message : "Translation failed");
       setPhase("preview");
     }
-  }, [redaction, sessionId, targetLanguage, selectedDoc, resetOutput, showToast, detectionWarning, phase]);
+  }, [redaction, sessionId, targetLanguage, selectedDoc, resetOutput, showToast, detectionWarning, phase, prefetchRelatedDocuments]);
 
   return {
     activeTab,
@@ -358,6 +414,11 @@ export function usePassageFlow() {
     mergeVoiceRedaction,
     showToast,
     syntheticDocs: SYNTHETIC_DOCS,
+    relatedDocsProcess,
+    relatedDocuments,
+    relatedDocsLoading,
+    relatedDocsError,
+    prefetchRelatedDocuments,
   };
 }
 

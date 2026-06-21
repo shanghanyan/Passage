@@ -4,7 +4,6 @@ import {
   extractDocumentOnServer,
   isServerExtractType,
   readTextFileClientSide,
-  SERVER_EXTRACT_NOTICE,
 } from "../lib/extract-document";
 import { ConnectionLostError } from "../lib/api-fetch";
 
@@ -45,12 +44,12 @@ export function FileUploadZone({ uiLocale, disabled, onTextReady, onError, onCon
         const text = await readTextFileClientSide(file);
         onTextReady(text, "txt");
       } catch (err) {
-        onError(err instanceof Error ? err.message : "Could not read text file");
+        onError(err instanceof Error ? err.message : t("upload.readFailed"));
       } finally {
         setExtracting(false);
       }
     },
-    [onError, onTextReady],
+    [onError, onTextReady, t],
   );
 
   const processServerFile = useCallback(
@@ -64,13 +63,13 @@ export function FileUploadZone({ uiLocale, disabled, onTextReady, onError, onCon
         setAcknowledged(false);
       } catch (err) {
         if (!handleConnectionError(err)) {
-          onError(err instanceof Error ? err.message : "Extraction failed");
+          onError(err instanceof Error ? err.message : t("upload.extractFailed"));
         }
       } finally {
         setExtracting(false);
       }
     },
-    [handleConnectionError, onError, onTextReady],
+    [handleConnectionError, onError, onTextReady, t],
   );
 
   const handleFile = useCallback(
@@ -89,9 +88,9 @@ export function FileUploadZone({ uiLocale, disabled, onTextReady, onError, onCon
         return;
       }
 
-      onError("Unsupported file type. Use .txt, .pdf, or an image (PNG, JPG, WebP).");
+      onError(t("upload.unsupported"));
     },
-    [disabled, extracting, onError, processTxt],
+    [disabled, extracting, onError, processTxt, t],
   );
 
   const onDrop = useCallback(
@@ -147,7 +146,7 @@ export function FileUploadZone({ uiLocale, disabled, onTextReady, onError, onCon
           <div className="upload-privacy-gate__icon">
             <i className="ti ti-alert-triangle" />
           </div>
-          <p className="upload-privacy-gate__notice">{SERVER_EXTRACT_NOTICE}</p>
+          <p className="upload-privacy-gate__notice">{t("upload.serverNotice")}</p>
           <label className="upload-privacy-gate__ack">
             <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
             {t("upload.ack")}

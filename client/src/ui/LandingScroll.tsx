@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useUiLocale } from "../i18n/useUiLocale";
-import { RiseIn } from "./motion";
 import type { PassageFlow } from "../hooks/usePassageFlow";
+import { LanguageSelect } from "./LanguageSelect";
+import { RiseIn } from "./motion";
 
 interface LandingScrollProps {
   flow: PassageFlow;
@@ -31,8 +32,9 @@ export function LandingScroll({ flow, onGetStarted }: LandingScrollProps) {
       <section className="landing-scroll-hero" aria-label="Passage">
         <h1 className="landing-scroll-brand">Passage</h1>
         <p className="landing-scroll-tagline">{t("app.tagline")}</p>
+        <LanguageSelect flow={flow} className="lang-select-hero lang-select-hero--landing" id="landing-translate-lang" />
         <div className="landing-scroll-cue" aria-hidden="true">
-          <span>Scroll</span>
+          <span>{t("landing.scroll")}</span>
           <i className="ti ti-chevron-down" />
         </div>
       </section>

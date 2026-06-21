@@ -377,6 +377,7 @@
   max-width: 640px;
   margin: 0 auto;
   padding: 80px 24px 120px;
+  text-align: center;
 }
 
 .landing-scroll-about .rise-in {
@@ -441,6 +442,23 @@
   margin-bottom: 28px;
 }
 
+.landing-scroll-cta-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.lang-select-hero--landing {
+  margin-top: 28px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+}
+
+.lang-select-hero--landing .lang-select-hero__select {
+  margin: 0 auto;
+  display: block;
+}
+
 .landing-scroll-cta {
   display: inline-flex;
   align-items: center;
@@ -488,7 +506,36 @@
   }
 }
 
-/* Language selector hero (Step 4) */
+.manual-redact-details {
+  margin-top: 20px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  background: var(--surface2);
+}
+
+.manual-redact-details > summary {
+  cursor: pointer;
+  font-size: var(--type-ui);
+  font-weight: 600;
+  color: var(--text-secondary);
+  list-style: none;
+}
+
+.manual-redact-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.manual-redact-details[open] > summary {
+  margin-bottom: 12px;
+}
+
+.manual-redact-details .manual-redact-panel {
+  margin-top: 4px;
+  padding-top: 0;
+  border-top: none;
+}
+
 .lang-select-hero {
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -601,6 +648,33 @@ html {
 
 .passage-shell .nav.stuck {
   padding: 10px 48px;
+}
+
+/* Workflow nav: logo left, New document right, phase strip below */
+.passage-shell.passage-workflow .nav {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  grid-template-columns: unset;
+  gap: 10px;
+  min-height: auto;
+  padding: 12px 48px 14px;
+}
+
+.passage-shell.passage-workflow .nav-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.passage-shell.passage-workflow .nav-logo {
+  justify-self: auto;
+  flex-shrink: 0;
+}
+
+.passage-shell.passage-workflow .nav-cta--right {
+  margin-left: auto;
+  justify-self: auto;
 }
 
 .passage-shell .nav-logo {
@@ -1280,17 +1354,12 @@ html {
   letter-spacing: 0.1em;
 }
 
-.nav-row--swapped {
-  flex-direction: row-reverse;
-  justify-content: space-between;
-}
-
-.nav-cta--left {
-  margin-right: auto;
-}
-
-.nav-logo--right {
+.nav-cta--right {
   margin-left: auto;
+}
+
+.passage-workflow .workflow-phase-strip {
+  justify-content: center;
 }
 
 /* Landing intro (Casa-inspired: clean hierarchy, whitespace, single accent) */
@@ -1564,6 +1633,7 @@ html {
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
 }
 
 .workflow-phase {
@@ -1737,7 +1807,33 @@ html {
 }
 
 .tts-fallback-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   color: #fbbf24;
+}
+
+.voice-auto-listen {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 16px;
+  font-size: var(--type-ui);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.voice-auto-listen input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.voice-auto-listen__hint {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-top: 2px;
 }
 
 .footer-compact {

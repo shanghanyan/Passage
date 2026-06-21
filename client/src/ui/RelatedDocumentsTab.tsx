@@ -1,81 +1,20 @@
-import { useEffect, useState, type CSSProperties } from "react";
-import { apiFetch, ConnectionLostError } from "../lib/api-fetch";
+import type { CSSProperties } from "react";
 import type { PassageFlow } from "../hooks/usePassageFlow";
 import { useUiLocale } from "../i18n/useUiLocale";
 import { RiseIn } from "./motion";
 import { LoadingState } from "./LoadingState";
 
-interface RelatedDoc {
-  name: string;
-  description: string;
-  status: string;
-}
-
 export function RelatedDocumentsTab({ flow }: { flow: PassageFlow }) {
   const { t } = useUiLocale(flow.uiLocale);
-  const [loading, setLoading] = useState(false);
-  const [processLabel, setProcessLabel] = useState<string | null>(null);
-  const [documents, setDocuments] = useState<RelatedDoc[]>([]);
-  const [error, setError] = useState<string | null>(null);
 
-  const canLoad = flow.phase === "done" && flow.redaction && flow.translationReady;
+  const canShow =
+    flow.phase === "done" && flow.redaction && (flow.translationReady || flow.relatedDocsLoading || flow.relatedDocuments.length > 0);
 
-  useEffect(() => {
-    if (!canLoad || !flow.redaction) return;
-
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    void (async () => {
-      try {
-        const res = await apiFetch("/api/related-documents", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            redacted_text: flow.redaction!.redacted,
-            session_id: flow.sessionId,
-          }),
-        });
-
-        const data = (await res.json()) as {
-          ok: boolean;
-          process?: string;
-          documents?: RelatedDoc[];
-          error?: string;
-        };
-
-        if (cancelled) return;
-
-        if (!res.ok || !data.ok || !data.documents) {
-          setError(data.error ?? t("docs.error"));
-          return;
-        }
-
-        setProcessLabel(data.process ?? null);
-        setDocuments(data.documents);
-      } catch (err) {
-        if (cancelled) return;
-        if (err instanceof ConnectionLostError) {
-          flow.setConnectionLost(true);
-          return;
-        }
-        setError(err instanceof Error ? err.message : t("docs.error"));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [canLoad, flow.redaction?.redacted, flow.sessionId, flow.setConnectionLost, t]);
-
-  if (!canLoad) {
+  if (!canShow) {
     return <p className="notice">{t("docs.empty")}</p>;
   }
 
-  if (loading) {
+  if (flow.relatedDocsLoading && flow.relatedDocuments.length === 0) {
     return (
       <LoadingState
         variant="panel"
@@ -85,10 +24,10 @@ export function RelatedDocumentsTab({ flow }: { flow: PassageFlow }) {
     );
   }
 
-  if (error) {
+  if (flow.relatedDocsError && flow.relatedDocuments.length === 0) {
     return (
       <div className="passage-card__inset passage-card__inset--error" role="alert">
-        <p>{error}</p>
+        <p>{t("docs.error")}</p>
       </div>
     );
   }
@@ -99,15 +38,15 @@ export function RelatedDocumentsTab({ flow }: { flow: PassageFlow }) {
         <p className="micro-label docs-section-header">{t("tab.documents")}</p>
         <p className="notice docs-disclaimer">{t("docs.disclaimer")}</p>
       </RiseIn>
-      {processLabel && (
+      {flow.relatedDocsProcess && (
         <RiseIn delay={0.17}>
           <div className="process-badge" style={{ marginBottom: 16 }}>
-            <i className="ti ti-id-badge" /> {processLabel}
+            <i className="ti ti-id-badge" /> {flow.relatedDocsProcess}
           </div>
         </RiseIn>
       )}
       <div className="doc-list">
-        {documents.map((doc, index) => (
+        {flow.relatedDocuments.map((doc, index) => (
           <div
             key={`${doc.name}-${index}`}
             className="doc-item doc-item--rise"

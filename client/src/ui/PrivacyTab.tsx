@@ -1,9 +1,12 @@
 import { ManualRedactPanel } from "./ManualRedactPanel";
-import { TYPE_COLORS, piiBadgeClass, piiLabel, renderTokenHighlights } from "./helpers";
+import { TYPE_COLORS, piiBadgeClass, renderTokenHighlights } from "./helpers";
+import { piiLabel } from "../i18n/strings";
+import { useUiLocale } from "../i18n/useUiLocale";
 import { CountUp } from "./motion";
 import type { PassageFlow } from "../hooks/usePassageFlow";
 
 export function PrivacyTab({ flow }: { flow: PassageFlow }) {
+  const { t, locale } = useUiLocale(flow.uiLocale);
   if (!flow.redaction) return null;
 
   const counts = flow.detectedSpans.reduce<Record<string, number>>((acc, s) => {
@@ -13,6 +16,7 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
 
   const sendBlocked = Boolean(flow.detectionWarning);
   const canSend = flow.phase === "preview";
+  const tokenCount = Object.keys(flow.redaction.tokenMap).length;
 
   return (
     <>
@@ -24,7 +28,7 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
 
       {flow.detectionWarning && (
         <div className="detection-warning" role="alert">
-          <strong>Send blocked</strong>
+          <strong>{t("privacy.sendBlockedTitle")}</strong>
           <p>{flow.detectionWarning}</p>
         </div>
       )}
@@ -32,10 +36,10 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
       <div className="privacy-layout">
         <div className="pii-sidebar">
           <div className="pii-card">
-            <h3>Detected by type</h3>
+            <h3>{t("privacy.detectedByType")}</h3>
             {Object.entries(counts).map(([type, count]) => (
               <div key={type} className="pii-stat">
-                <span>{piiLabel(type)}</span>
+                <span>{piiLabel(locale, type)}</span>
                 <span className="pii-count">
                   <CountUp value={count} />
                 </span>
@@ -43,12 +47,12 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
             ))}
           </div>
           <div className="pii-card">
-            <h3>Spans found</h3>
+            <h3>{t("privacy.spansFound")}</h3>
             {flow.detectedSpans.map((span, i) => (
               <div key={i} className="pii-type-item">
-                <span className={`pii-badge ${piiBadgeClass(span.type)}`}>{piiLabel(span.type)}</span>
+                <span className={`pii-badge ${piiBadgeClass(span.type)}`}>{piiLabel(locale, span.type)}</span>
                 <div>
-                  <div className="pii-nm">{span.type.replace("_", " ")}</div>
+                  <div className="pii-nm">{piiLabel(locale, span.type)}</div>
                   <div className="pii-ds">
                     {span.confidence != null
                       ? `${Math.round(span.confidence * 100)}% · ${span.source ?? "regex"}`
@@ -60,9 +64,9 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
           </div>
           {flow.lastRecall !== null && (
             <div className="pii-card">
-              <h3>Recall score</h3>
+              <h3>{t("privacy.recallScore")}</h3>
               <div className="pii-stat">
-                <span>Observability</span>
+                <span>{t("privacy.observability")}</span>
                 <span className="pii-count">
                   <CountUp value={Math.round(flow.lastRecall * 100)} suffix="%" />
                 </span>
@@ -73,14 +77,14 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
 
         <div className="doc-pane">
           <div className="pane-header">
-            <span className="pane-tag">Scrubbed preview</span>
-            <span style={{ fontSize: 11, color: "var(--cream-faint)" }}>Tap a token for type · confidence · source</span>
+            <span className="pane-tag">{t("privacy.scrubbedPreview")}</span>
+            <span style={{ fontSize: 11, color: "var(--cream-faint)" }}>{t("privacy.tapTokenHint")}</span>
           </div>
           <div className="token-legend">
             {Object.entries(TYPE_COLORS).map(([type, color]) => (
               <span key={type} className="token-legend-item">
                 <span className="token-legend-swatch" style={{ background: color }} />
-                {type}
+                {piiLabel(locale, type)}
               </span>
             ))}
           </div>
@@ -90,12 +94,10 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
         </div>
       </div>
 
-      {canSend && <ManualRedactPanel flow={flow} />}
-
       {canSend && (
         <div className="tool-actions" style={{ marginTop: 16 }}>
           <button type="button" className="btn btn-ghost btn-sm" onClick={flow.enterEditMode}>
-            <i className="ti ti-edit" /> Full-screen edit mode
+            <i className="ti ti-edit" /> {t("privacy.fullScreenEdit")}
           </button>
           <button
             type="button"
@@ -103,32 +105,39 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
             disabled={sendBlocked}
             onClick={() => void flow.sendForTranslation()}
           >
-            <i className="ti ti-send" /> {sendBlocked ? "Send blocked (detection gap)" : "Send for translation"}
+            <i className="ti ti-send" /> {sendBlocked ? t("privacy.sendBlockedBtn") : t("privacy.sendForTranslation")}
           </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => flow.setShowSentPanel((v) => !v)}>
-            <i className="ti ti-code" /> {flow.showSentPanel ? "Hide" : "Show"} Claude payload
+            <i className="ti ti-code" /> {flow.showSentPanel ? t("privacy.hidePayload") : t("privacy.showPayload")}{" "}
+            {t("privacy.claudePayload")}
           </button>
         </div>
       )}
 
+      {canSend && (
+        <details className="manual-redact-details">
+          <summary>{t("privacy.markMissedOptional")}</summary>
+          <ManualRedactPanel flow={flow} />
+        </details>
+      )}
+
       {flow.phase === "translating" && (
         <p className="notice" style={{ marginTop: 16 }}>
-          <i className="ti ti-loader" /> Translation in progress — switch to the Translation tab to watch.
+          <i className="ti ti-loader" /> {t("privacy.translatingNotice")}
         </p>
       )}
 
       <p className="notice" style={{ marginTop: 12 }}>
-        <i className="ti ti-shield" />{" "}
-        {canSend
-          ? "No network requests until you press send. Upstash gets a PII-free session marker only — raw values stay in browser memory."
-          : "Fix detection gaps before sending. Raw values never leave your browser."}
+        <i className="ti ti-shield" /> {canSend ? t("privacy.noticeCanSend") : t("privacy.noticeFixGaps")}
       </p>
 
       {flow.showSentPanel && canSend && <pre className="redacted-payload">{flow.redaction.redacted}</pre>}
 
       {canSend && (
         <details className="token-debug-details" style={{ marginTop: 12 }}>
-          <summary>Token map ({Object.keys(flow.redaction.tokenMap).length} keys)</summary>
+          <summary>
+            {t("privacy.tokenMap")} ({tokenCount} {t("privacy.keys")})
+          </summary>
           <pre className="span-log">{Object.keys(flow.redaction.tokenMap).join("\n")}</pre>
         </details>
       )}

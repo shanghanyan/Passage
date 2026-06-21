@@ -12,10 +12,11 @@ This document describes the system architecture, every source file in the reposi
 2. [Technology stack](#technology-stack)
 3. [Privacy and data flow](#privacy-and-data-flow)
 4. [Application workflow](#application-workflow)
-5. [API surface](#api-surface)
-6. [Complete file reference](#complete-file-reference)
-7. [Technical assessment](#technical-assessment)
-8. [Known limitations and duplication](#known-limitations-and-duplication)
+5. [UI localization (i18n)](#ui-localization-i18n)
+6. [API surface](#api-surface)
+7. [Complete file reference](#complete-file-reference)
+8. [Technical assessment](#technical-assessment)
+9. [Known limitations and duplication](#known-limitations-and-duplication)
 
 ---
 
@@ -37,7 +38,7 @@ flowchart TB
     Redact["Tokenize ⟦PII:TYPE:n⟧"]
     Gate[Explicit send gate]
     Validate[Fail-closed validation]
-    UI[Translation / Privacy / Voice tabs]
+    UI[Translation / Privacy / Voice / Related docs]
   end
 
   subgraph upstash [Upstash Redis]
@@ -53,6 +54,7 @@ flowchart TB
     Routes[REST routes]
     Claude[Claude Sonnet 4.6]
     DG[Deepgram STT / TTS]
+    RelDocs[Related documents]
     OTEL[OpenTelemetry → Phoenix or Arize AX]
     Sentry[Sentry error monitoring]
   end
@@ -61,6 +63,8 @@ flowchart TB
   Gate -->|POST /api/redaction-session-token| Session
   Gate -->|POST /api/translate| Claude
   Validate --> UI
+  UI -->|POST /api/related-documents| RelDocs
+  RelDocs --> Claude
   UI -->|POST /api/voice/question| Routes
   Routes --> AM
   Routes --> LC
@@ -80,6 +84,7 @@ flowchart TB
 | Layer | Choices |
 |-------|---------|
 | **Client runtime** | React 19, TypeScript, Vite 6 |
+| **UI localization** | `client/src/i18n/` — 11 locale packs; `langCode` drives UI + translation target |
 | **In-browser ML** | `@huggingface/transformers` — `Xenova/bert-base-NER` (Transformers.js) |
 | **Voice** | `@deepgram/sdk` — Nova-3 STT, Aura-2 TTS (client token or server proxy) |
 | **Server** | Express 4, TypeScript, `tsx` for dev |
@@ -118,14 +123,39 @@ Phases are driven by `usePassageFlow` (`client/src/hooks/usePassageFlow.ts`):
 input → (optional edit) → preview → translating → done | blocked
 ```
 
-1. **Input** — paste or pick a synthetic demo document; choose target language.
-2. **Analyze** — run detection (regex always; NER when model loads).
-3. **Edit** (optional) — manually add/adjust spans and PII types.
-4. **Privacy preview** — review counts, highlights, expandable Claude payload.
-5. **Send for translation** — mint session, register marker, POST redacted text.
-6. **Results** — Translation tab (side-by-side tokens), Voice tab (STT → redact → Q&A), Privacy tab (audit view).
+### Landing and language
+
+1. **Landing scroll** — hero + about copy; **language picker** (`LanguageSelect` on `LandingScroll`) sets `langCode` before the user pastes a document.
+2. **UI locale** — derived from `langCode` via `uiLocaleFromLangCode()`; nav, redaction review, tabs, voice controls, loading overlays, and TTS warnings all use `t()` / `tf()` from `useUiLocale`.
+3. **Get started** — scrolls to the paste/upload tool (`InputPhase`).
+
+### Redaction through results
+
+4. **Input** — paste, upload `.txt` (client-only), or upload PDF/image (server extract with privacy gate); optional synthetic demo chips.
+5. **Analyze** — in-browser detection (regex + optional NER); scroll resets to top so **scrubbed preview** is visible first.
+6. **Edit** (optional) — full-screen manual span marking (`EditRedactPhase`) or collapsed **optional manual redact** panel on Privacy tab.
+7. **Privacy preview** — per-type counts, token highlights, send gate, expandable Claude payload.
+8. **Send for translation** — mint session, register marker, POST redacted text.
+9. **Results tabs** — Translation (side-by-side tokens + manual TTS listen), Privacy (audit), Voice Q&A (STT → redact → Claude; optional auto-play answer), **Related documents** (prefetched on translate success).
 
 Planted demo documents intentionally trigger **detection gaps** (address leak) or **validation failures** (Claude token mismatch) for live Sentry/observability beats.
+
+---
+
+## UI localization (i18n)
+
+| Piece | Location | Behavior |
+|-------|----------|----------|
+| **Core strings** | `client/src/i18n/strings.ts` | Base English + per-locale overrides (`en`, `es`, `fr`, `zh`, `vi`, `ko`, `pt`, `ar`, `hi`, `tl`, `uk`) |
+| **Workflow UI** | `client/src/i18n/workflow-ui.ts` | Redaction, edit, loading, PII labels, upload errors — merged at build |
+| **Voice / TTS UI** | `client/src/i18n/voice-tts-ui.ts` | Voice tab + `ExplanationTts` bar strings — merged at build |
+| **Hook** | `client/src/i18n/useUiLocale.ts` | `t(key)`, `tf(key, {vars})` for placeholder substitution |
+| **Panel labels** | `client/src/lib/languages.ts` → `PANEL_LABELS` | Translation tab pane labels in document target language |
+| **RTL** | `PassageApp.tsx` | `document.documentElement.dir = rtl` when `uiLocale === "ar"` |
+
+**Related documents** and **server Claude prompts** receive `target_language` (English name from `langCode`, e.g. `"Spanish"`) so generated process names and document descriptions match the user's chosen language.
+
+Verification: `client/scripts/verify-ui-locale-default.mjs` (language picker on landing; `uiLocale` follows `langCode`).
 
 ---
 
@@ -139,6 +169,8 @@ Planted demo documents intentionally trigger **detection gaps** (address leak) o
 | `POST` | `/api/launcher/goodbye` | Explicit tab close |
 | `POST` | `/api/redaction-session-token` | Mint scoped Upstash credentials |
 | `POST` | `/api/translate` | Redacted text → Claude translation |
+| `POST` | `/api/extract-document` | PDF/image upload → extracted text (multipart; server-side OCR/text) |
+| `POST` | `/api/related-documents` | Redacted text + `target_language` → process label + associated doc types |
 | `POST` | `/api/score-redaction` | Recall metrics → OTEL `redaction-check` span |
 | `POST` | `/api/deepgram-token` | Short-lived Deepgram grant or server-proxy flag |
 | `POST` | `/api/voice/question` | Redacted context + question → answer + TTS text |
@@ -209,13 +241,24 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | `explanation-text.ts` | Extracts “explanation” section from Claude output for TTS; maps language → Deepgram Aura-2 voice ID | — | **Useful** — multilingual section markers + voice routing |
 | `prepare-voice-question.ts` | Redacts voice transcript before any network call; verifies no raw leak | `detect`, `redact`, `validate-spans` | **Impressive** — enforces voice privacy boundary |
 | `voice.ts` | Deepgram live STT (WebSocket + MediaRecorder), voice Q&A fetch, TTS MP3 fetch; token vs server-proxy modes | `@deepgram/sdk`, `./errors` | **Impressive** — dual auth, full voice stack |
-| `languages.ts` | 10 translation languages; STT/TTS capability metadata | — | Clean config |
+| `languages.ts` | 10 translation languages; STT/TTS capability metadata; `PANEL_LABELS` for translation panes | — | Clean config |
+| `extract-document.ts` | Client helpers for `.txt` read, PDF/image server POST to `/api/extract-document` | `api-fetch` | Upload path with privacy gate |
+| `api-fetch.ts` | Fetch wrapper with connection-lost detection for launcher health | — | Resilience helper |
 | `redis.ts` | Mints scoped Upstash creds via server; writes PII-free session marker from browser | `fetch` → `/api/redaction-session-token`, Upstash REST | **Impressive** — scoped creds pattern |
 | `score-redaction.ts` | Computes recall vs ground truth; POSTs metrics to server | `fetch` → `/api/score-redaction` | Clean metrics bridge |
 | `sentry.ts` | Browser Sentry init with scrub hook | `@sentry/react`, `sentry-scrub` | Standard |
 | `sentry-scrub.ts` | Regex scrub of PII patterns from Sentry strings/extras | — | Necessary; duplicated on server |
 | `errors.ts` | `formatError()` for safe user-facing messages | — | Small utility |
 | `audit-cases.ts` | Detection QA cases + evaluator (planted failures, overlaps, names) | `./types` | **Impressive** — built-in audit harness |
+
+### `client/src/i18n/`
+
+| File | Purpose | Uses | Assessment |
+|------|---------|------|------------|
+| `strings.ts` | Core UI string keys, locale tables, `t()` / `tf()` / `piiLabel()` / `uiLocaleFromLangCode()` | merges `workflow-ui`, `voice-tts-ui` | **Core** — single source for chrome copy |
+| `workflow-ui.ts` | Redaction, edit, loading, upload error strings (all 11 locales) | merged into `strings.ts` | Large patch file — keeps strings.ts readable |
+| `voice-tts-ui.ts` | Voice tab + TTS bar strings (all 11 locales) | merged into `strings.ts` | Voice/translation listen UX copy |
+| `useUiLocale.ts` | React hook: `t(key)`, `tf(key, vars)` | `strings.ts` | Standard i18n hook |
 
 ### `client/src/data/`
 
@@ -227,21 +270,27 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 
 | File | Purpose | Uses | Assessment |
 |------|---------|------|------------|
-| `usePassageFlow.ts` | Central state machine: detect → edit → preview → translate → voice; recall scoring; validation failures | All lib modules, `SYNTHETIC_DOCS`, Sentry | **Impressive** — orchestrates entire product flow |
+| `usePassageFlow.ts` | Central state machine: detect → edit → preview → translate → voice; recall scoring; validation failures; **prefetch related documents** on translate success | All lib modules, `SYNTHETIC_DOCS`, Sentry | **Impressive** — orchestrates entire product flow |
 | `useLauncherSession.ts` | Periodic heartbeat + goodbye beacons so launcher stops when browser tab closes | `fetch` → launcher API | Clever lifecycle integration |
 
 ### `client/src/ui/`
 
 | File | Purpose | Uses | Assessment |
 |------|---------|------|------------|
-| `PassageApp.tsx` | Main shell: nav, phase routing, footer, loading overlays, toasts | hooks, phase components | **Polished** workflow UX |
-| `InputPhase.tsx` | Paste area, language picker, synthetic doc chips, analyze | `LANGUAGES`, flow hook | Standard form phase |
-| `EditRedactPhase.tsx` | Manual span selection, PII type assignment, re-analyze | `PII_TYPES`, flow hook | **Useful** — human-in-the-loop redaction |
-| `PrivacyTab.tsx` | PII sidebar, token highlights, send gate, expandable Claude payload inspector | `./helpers`, flow hook | **Impressive** — transparency for judges/devtools |
-| `AnalysisView.tsx` | Tab container: Translation / Privacy / Voice | sub-tabs | Layout glue |
-| `TranslationTab.tsx` | Side-by-side tokenized source/translation; validation failure panel | `ExplanationTts`, `./helpers` | Core results view |
-| `VoiceTab.tsx` | Mic STT, question redaction preview, Claude Q&A, TTS playback | `prepareVoiceQuestion`, `voice`, `validate`, `ExplanationTts` | **Impressive** — end-to-end voice privacy |
-| `ExplanationTts.tsx` | Play/pause TTS for tokenized explanation text only | `explanation-text`, `voice`, `languages` | **Good** — native vs English fallback voice UX |
+| `PassageApp.tsx` | Main shell: nav (logo left, **New document** right), phase strip, landing scroll, phase routing, scroll-to-top on preview, footer, loading overlays, toasts, `lang`/`dir` on `<html>` | hooks, phase components, i18n | **Polished** workflow UX |
+| `LandingScroll.tsx` | Scroll landing hero + about; embeds `LanguageSelect`; get-started scroll to tool | `LanguageSelect`, i18n | **Entry UX** — language before paste |
+| `LanguageSelect.tsx` | Shared translation-language `<select>` (landing + reusable) | `LANGUAGES`, flow hook, i18n | Small shared control |
+| `InputPhase.tsx` | Paste area, file upload zone, synthetic doc chips, analyze (no language picker — moved to landing) | `FileUploadZone`, flow hook, i18n | Standard form phase |
+| `FileUploadZone.tsx` | Drag/drop `.txt` / PDF / image; server-extract privacy gate for non-txt | `extract-document`, i18n | Upload with ack UX |
+| `ManualRedactPanel.tsx` | Collapsible optional manual PII marks on Privacy tab | flow hook, i18n, `piiLabel` | Human-in-the-loop without dominating preview |
+| `ConnectionLostView.tsx` | Offline / server unreachable recovery UI | i18n | Resilience |
+| `EditRedactPhase.tsx` | Full-screen manual span selection, PII type assignment, re-analyze | `PII_TYPES`, flow hook, i18n | **Useful** — human-in-the-loop redaction |
+| `PrivacyTab.tsx` | PII sidebar, token highlights, send gate, optional manual redact `<details>`, expandable Claude payload inspector | `./helpers`, i18n, `ManualRedactPanel` | **Impressive** — transparency for judges/devtools |
+| `AnalysisView.tsx` | Tab container: Translation / Privacy / Voice / **Related documents** | sub-tabs, i18n | Layout glue |
+| `TranslationTab.tsx` | Side-by-side tokenized source/translation; validation failure panel; `ExplanationTts` with localized listen label | `ExplanationTts`, `PANEL_LABELS`, `./helpers` | Core results view |
+| `RelatedDocumentsTab.tsx` | Displays prefetched process + doc list from flow state (loading/error/empty i18n) | flow hook, i18n | Informational tab — no raw PII |
+| `VoiceTab.tsx` | Mic STT, question redaction preview, Claude Q&A, optional **auto-play answer** checkbox, TTS playback | `prepareVoiceQuestion`, `voice`, `validate`, `ExplanationTts`, i18n | **Impressive** — end-to-end voice privacy |
+| `ExplanationTts.tsx` | Play/pause TTS for tokenized explanation text; localized fallback-voice warning | `explanation-text`, `voice`, i18n | **Good** — manual listen + translated warnings |
 | `LoadingState.tsx` | Reusable spinner (inline / panel / overlay variants) | React | Small reusable component |
 | `helpers.tsx` | Token highlight rendering, PII badges, colors, tooltips | React, `./types` | Shared UI utilities |
 | `DetectionTest.tsx` | Dev harness (`?detection-test`): detect, audit suite, fetch monitor, span debug | `audit-cases`, `detect`, `ner`, etc. | **Impressive** — QA dashboard in-app |
@@ -252,7 +301,7 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | File | Purpose | Uses | Assessment |
 |------|---------|------|------------|
 | `passage-v2.css` | Base design system from HTML draft (~505 lines): colors, nav, hero, buttons | CSS custom properties | **Strong visual identity** |
-| `passage-app.css` | App-specific overrides (~893 lines): workflow, voice, tabs, loading | `--nav-height` vars from v2 | **Substantial** — not a component library, raw CSS |
+| `passage-app.css` | App-specific overrides (~1,900 lines): workflow, landing scroll, voice, tabs, loading, i18n layout | `--nav-height` vars from v2 | **Substantial** — not a component library, raw CSS |
 
 ### `client/scripts/` — verification & demo automation
 
@@ -266,6 +315,7 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | `verify-tokenized-ui.mjs` | Playwright: translation pane shows tokens, not raw values | Playwright | Privacy E2E |
 | `verify-explanation-tts.mjs` | Unit test explanation extraction + voice mapping | `explanation-text.ts` | Targeted safety |
 | `verify-voice-redaction.mjs` | Voice transcript redaction cases; documents known gaps | `prepare-voice-question.ts` | **Honest** — admits STT redaction limits |
+| `verify-ui-locale-default.mjs` | Guards: language picker on landing; `uiLocale` derives from `langCode` | reads hook + UI sources | i18n regression guard |
 | `trigger-sentry-browser.mjs` | Playwright: mock bad translate → fail-closed UI beat | Playwright | Demo automation |
 | `capture-planted-translate-payload.mjs` | Playwright: Apt #4B doc blocks send (no translate call) | Playwright | Demo automation |
 
@@ -301,6 +351,7 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | `detection-patterns.ts` | Server-side regex-only detection + recall for batch scripts | — | Script support; not full NER pipeline |
 | `agent-memory.ts` | Redis Cloud Agent Memory REST client; stores redacted voice turns only | `fetch` | **Impressive** — safety asserts before persist |
 | `lang-cache.ts` | Redis LangCache semantic cache for voice FAQ; doc fingerprint in cache key | `node:crypto`, `./agent-memory` | **Impressive** — optional perf layer |
+| `related-documents.ts` | Claude JSON: immigration process + 5–8 associated doc types; `target_language` for localized labels | `@anthropic-ai/sdk`, `./sentry` | Informational tab — redacted input only |
 | `observability/index.ts` | Dual-target OTEL init: Phoenix vs Arize AX based on env | `./phoenix`, `./ax` | **Impressive** — pluggable observability |
 | `observability/phoenix.ts` | Phoenix OTEL registration + Anthropic auto-instrumentation | `@arizeai/phoenix-otel`, OpenInference Anthropic | Sponsor integration |
 | `observability/ax.ts` | Arize AX OTLP exporter + Anthropic instrumentation | `@opentelemetry/*`, OpenInference | Sponsor integration |
@@ -316,6 +367,8 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | `voice-question.ts` | LangCache lookup → Agent Memory history → Claude; TTS text extraction | agent-memory, lang-cache, claude, deepgram | **Impressive** — tiered voice stack |
 | `voice-speak.ts` | TTS endpoint returning MP3 buffer | `../lib/deepgram` | Thin proxy |
 | `voice-transcribe.ts` | Server-proxy STT for audio blobs | `../lib/deepgram` | Fallback when client can’t hold API key |
+| `extract-document.ts` | PDF text layer + image OCR path for uploads | multer, `./sentry` | Server-side extract with privacy tradeoff |
+| `related-documents.ts` | POST handler: validates `redacted_text`, passes `target_language` to Claude | `../lib/related-documents` | Related docs tab API |
 | `launcher-session.ts` | In-memory heartbeat/goodbye for one-click launcher auto-shutdown | express | Clever but **not durable** (in-memory only) |
 
 ### `server/src/data/`
@@ -358,27 +411,31 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 
 8. **Transparency UI** — Privacy tab with expandable Claude payload and per-type span counts supports “verify in devtools” claims.
 
+9. **Immigrant-facing i18n** — Eleven locale packs cover landing through voice/TTS warnings; UI language tied to translation target; related-documents responses localized server-side.
+
 ### What is conventional or hackathon-scoped
 
 1. **No production hardening** — In-memory launcher session store, no auth, no rate limiting, no structured logging beyond console + Sentry, dev-only Vite proxy.
 
 2. **Duplication** — `explanation-text.ts`, `sentry-scrub.ts`, and synthetic docs exist in both client (TS) and server (TS/JSON). No shared package; drift risk.
 
-3. **CSS volume without a system** — ~1,400 lines of hand-written CSS ported from a static HTML draft; no Tailwind/component library; maintainability tradeoff.
+3. **CSS volume without a system** — ~2,400 lines of hand-written CSS ported from a static HTML draft; no Tailwind/component library; maintainability tradeoff.
 
-4. **Server detection is regex-only** — Batch scoring on the server does not run NER; recall metrics understate browser capability when NER catches extra spans.
+4. **i18n patch files** — `workflow-ui.ts` and `voice-tts-ui.ts` duplicate structure per locale; no ICU/plural rules; some server error strings still English.
 
-5. **Voice redaction gaps** — Documented in `verify-voice-redaction.mjs`: STT may miss spoken digits; mic disclaimer acknowledges this; not solved.
+5. **Server detection is regex-only** — Batch scoring on the server does not run NER; recall metrics understate browser capability when NER catches extra spans.
 
-6. **TTS language fallback** — Several target languages use an English Aura-2 voice reading translated text; functional but not native-quality audio.
+6. **Voice redaction gaps** — Documented in `verify-voice-redaction.mjs`: STT may miss spoken digits; mic disclaimer acknowledges this; not solved.
 
-7. **Claude-centric backend** — Translation and Q&A are straightforward prompt + API calls; the innovation is what you **don’t** send, not novel model orchestration.
+7. **TTS language fallback** — Several target languages use an English Aura-2 voice reading translated text; functional but not native-quality audio (UI warns in user's language).
 
-8. **Static HTML draft still in repo** — `passage V2 Draft.html` is dead weight for runtime but preserved as design reference.
+8. **Claude-centric backend** — Translation, Q&A, and related-documents are prompt + API calls; the innovation is what you **don’t** send, not novel model orchestration.
 
-9. **Express route wiring** — Flat file-per-route structure; no router modules, no middleware layer, no OpenAPI — fine for demo scope.
+9. **Static HTML draft still in repo** — `passage V2 Draft.html` is dead weight for runtime but preserved as design reference.
 
-10. **Redis optional tiers** — Agent Memory and LangCache are nice when configured but the app works without them; adds env complexity for marginal demo gain.
+10. **Express route wiring** — Flat file-per-route structure; no router modules, no middleware layer, no OpenAPI — fine for demo scope.
+
+11. **Redis optional tiers** — Agent Memory and LangCache are nice when configured but the app works without them; adds env complexity for marginal demo gain.
 
 ### Summary verdict
 
@@ -386,7 +443,7 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 |-----------|--------|-------|
 | **Privacy engineering** | Strong | Coherent boundary, fail-closed, auditable |
 | **Detection quality** | Good (demo) | Regex + NER + manual edit; not production-grade NER |
-| **UX / polish** | Strong for hackathon | Launcher, tabs, planted demos, CSS investment |
+| **UX / polish** | Strong for hackathon | Launcher, scroll landing, i18n, tabs, planted demos, CSS investment |
 | **Backend sophistication** | Moderate | Thin Express layer; Claude/Deepgram are integrations |
 | **Test / verify tooling** | Strong | Playwright privacy audits stand out |
 | **Production readiness** | Low | By design — demo and judge narrative first |
@@ -399,6 +456,7 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 |-------|--------|
 | **Synthetic docs duplicated** | `client/src/data/synthetic-docs.ts` ↔ `server/src/data/synthetic-docs.json` — update both for ground-truth changes |
 | **Shared logic duplicated** | `explanation-text.ts`, `sentry-scrub.ts` on client and server |
+| **i18n strings** | Split across `strings.ts`, `workflow-ui.ts`, `voice-tts-ui.ts` — update all three merge sources when adding keys |
 | **Launcher session** | In-memory Map in `launcher-session.ts` — single process, lost on restart |
 | **Port conflicts** | Stale server on `:3001` breaks launcher; documented in README |
 | **NER first load** | Large model download on first analyze; `detectionWarning` / `nerNote` surface this |
@@ -414,4 +472,4 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 
 ---
 
-*Generated from full repository review. Excludes `node_modules/`, lock files, build output, logs, and Apple code signature binaries.*
+*Last updated for landing i18n, related-documents prefetch, voice auto-listen option, and localized TTS warnings. Excludes `node_modules/`, lock files, build output, logs, and Apple code signature binaries.*

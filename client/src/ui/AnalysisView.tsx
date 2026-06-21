@@ -24,15 +24,15 @@ export function AnalysisView({ flow }: AnalysisViewProps) {
     <div className="workspace show rise-in-group">
       <RiseIn className="workspace-back">
         <button type="button" className="btn btn-ghost btn-sm" onClick={flow.startOver}>
-          <i className="ti ti-arrow-left" /> Start over
+          <i className="ti ti-arrow-left" /> {t("workspace.startOver")}
         </button>
         <span className="process-badge">
-          {flow.selectedDoc?.title ?? "Your document"} · {flow.targetLanguage}
+          {flow.selectedDoc?.title ?? t("workspace.yourDocument")} · {flow.targetLanguage}
         </span>
         {flow.phase === "translating" && (
           <span className="process-badge" style={{ background: "var(--surface2)", color: "var(--cream-dim)", border: "1px solid var(--border)" }}>
             <span className="spinner" style={{ marginRight: 6, verticalAlign: "middle" }} />
-            Translating…
+            {t("workspace.translating")}
           </span>
         )}
       </RiseIn>

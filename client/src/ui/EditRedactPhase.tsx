@@ -1,9 +1,12 @@
 import { useCallback, useRef, useState } from "react";
-import { PII_TYPES, piiLabel } from "./helpers";
+import { PII_TYPES } from "./helpers";
+import { piiLabel } from "../i18n/strings";
+import { useUiLocale } from "../i18n/useUiLocale";
 import type { PassageFlow } from "../hooks/usePassageFlow";
 import type { DetectedSpan, PiiType } from "../lib/types";
 
 export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
+  const { t, locale } = useUiLocale(flow.uiLocale);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [selection, setSelection] = useState<{ start: number; end: number; text: string } | null>(null);
 
@@ -44,15 +47,12 @@ export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
   return (
     <section className="workflow-card">
       <div className="workflow-card-head">
-        <h2>Edit &amp; re-redact</h2>
-        <p className="notice">
-          Highlight any text you want treated as sensitive, choose a type, then re-analyze. Manual selections merge
-          with automatic detection.
-        </p>
+        <h2>{t("edit.title")}</h2>
+        <p className="notice">{t("edit.notice")}</p>
       </div>
 
       <label className="level-label" htmlFor="edit-redact-text">
-        Original text — highlight a span to redact
+        {t("edit.originalLabel")}
       </label>
       <textarea
         id="edit-redact-text"
@@ -60,6 +60,7 @@ export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
         className="voice-textarea workflow-textarea edit-redact-textarea"
         rows={12}
         value={flow.rawText}
+        placeholder={t("edit.placeholder")}
         onChange={(e) => flow.setRawText(e.target.value)}
         onSelect={readSelection}
         onMouseUp={readSelection}
@@ -68,14 +69,16 @@ export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
       />
 
       {selection && (
-        <div className="manual-redact-toolbar" role="toolbar" aria-label="Mark selection as PII">
+        <div className="manual-redact-toolbar" role="toolbar" aria-label={t("edit.selectToolbarAria")}>
           <span className="manual-redact-label">
-            Redact &ldquo;{selection.text.length > 48 ? `${selection.text.slice(0, 48)}…` : selection.text}&rdquo; as:
+            {t("manual.redactPrefix")} &ldquo;
+            {selection.text.length > 48 ? `${selection.text.slice(0, 48)}…` : selection.text}&rdquo;{" "}
+            {t("edit.redactAs")}
           </span>
           <div className="manual-redact-types">
             {PII_TYPES.map((type) => (
               <button key={type} type="button" className="btn btn-ghost btn-sm" onClick={() => addSelectionAs(type)}>
-                {piiLabel(type)}
+                {piiLabel(locale, type)}
               </button>
             ))}
           </div>
@@ -84,16 +87,18 @@ export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
 
       {flow.manualSpans.length > 0 && (
         <div className="manual-span-list">
-          <span className="level-label">Manual redactions ({flow.manualSpans.length})</span>
+          <span className="level-label">
+            {t("edit.manualRedactions")} ({flow.manualSpans.length})
+          </span>
           <ul>
             {flow.manualSpans.map((span, i) => (
               <li key={`${span.start}-${span.end}-${span.type}-${i}`}>
-                <span className="manual-span-type">{piiLabel(span.type)}</span>
+                <span className="manual-span-type">{piiLabel(locale, span.type)}</span>
                 <span className="manual-span-value">
                   {span.value.length > 60 ? `${span.value.slice(0, 60)}…` : span.value}
                 </span>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => flow.removeManualSpan(i)}>
-                  Remove
+                  {t("manual.remove")}
                 </button>
               </li>
             ))}
@@ -103,7 +108,7 @@ export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
 
       <div className="tool-actions" style={{ marginTop: 16 }}>
         <button type="button" className="btn btn-ghost btn-sm" onClick={flow.startOver}>
-          <i className="ti ti-arrow-left" /> Cancel
+          <i className="ti ti-arrow-left" /> {t("edit.cancel")}
         </button>
         <button
           type="button"
@@ -113,11 +118,11 @@ export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
         >
           {flow.detecting ? (
             <>
-              <span className="spinner" /> Re-analyzing…
+              <span className="spinner" /> {t("edit.reanalyzing")}
             </>
           ) : (
             <>
-              <i className="ti ti-wand" /> Re-analyze &amp; redact
+              <i className="ti ti-wand" /> {t("edit.reanalyze")}
             </>
           )}
         </button>

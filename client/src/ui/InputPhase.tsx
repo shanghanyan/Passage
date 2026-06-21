@@ -1,6 +1,5 @@
 import { FileUploadZone } from "./FileUploadZone";
 import { useUiLocale } from "../i18n/useUiLocale";
-import { LANGUAGES } from "../lib/languages";
 import type { PassageFlow } from "../hooks/usePassageFlow";
 import { RiseIn } from "./motion";
 
@@ -11,33 +10,12 @@ export function InputPhase({ flow }: { flow: PassageFlow }) {
 
   return (
     <section className="workflow-card rise-in-group" id="passage-tool">
-      <RiseIn className="lang-select-hero">
-        <label className="lang-select-hero__label micro-label" htmlFor="translate-lang">
-          {t("input.translateTo")}
-        </label>
-        <select
-          id="translate-lang"
-          className="lang-select-hero__select"
-          value={flow.langCode}
-          onChange={(e) => flow.setLangCode(e.target.value)}
-        >
-          {LANGUAGES.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.flag} {l.name} ({l.native})
-            </option>
-          ))}
-        </select>
-        <p className="lang-select-hero__hint">
-          Document translation language — UI stays in English. Voice Q&amp;A and read-back follow this choice.
-        </p>
-      </RiseIn>
-
-      <RiseIn delay={0.17} className="workflow-card-head">
+      <RiseIn className="workflow-card-head">
         <h2>{t("input.title")}</h2>
         <p className="notice">{t("input.notice")}</p>
       </RiseIn>
 
-      <RiseIn delay={0.34}>
+      <RiseIn delay={0.17}>
         <FileUploadZone
           uiLocale={flow.uiLocale}
           disabled={flow.detecting}
@@ -47,13 +25,13 @@ export function InputPhase({ flow }: { flow: PassageFlow }) {
         />
       </RiseIn>
 
-      <RiseIn delay={0.51}>
+      <RiseIn delay={0.34}>
         <p className="upload-or-divider">
           <span>{t("input.orPaste")}</span>
         </p>
       </RiseIn>
 
-      <RiseIn delay={0.68}>
+      <RiseIn delay={0.51}>
         <textarea
           className="voice-textarea workflow-textarea"
           rows={12}
@@ -64,7 +42,7 @@ export function InputPhase({ flow }: { flow: PassageFlow }) {
         />
       </RiseIn>
 
-      <RiseIn delay={0.85}>
+      <RiseIn delay={0.68}>
         <div style={{ margin: "16px 0" }}>
           <p className="notice">{t("input.samples")}</p>
           <div className="demo-chips">
@@ -82,7 +60,7 @@ export function InputPhase({ flow }: { flow: PassageFlow }) {
                   type="button"
                   className="demo-chip"
                   onClick={() => flow.loadSample(doc.id)}
-                  title="Demo-only — tests fail-closed paths"
+                  title={t("input.demoOnlyTitle")}
                 >
                   {doc.title}
                 </button>
@@ -92,7 +70,7 @@ export function InputPhase({ flow }: { flow: PassageFlow }) {
         </div>
       </RiseIn>
 
-      <RiseIn delay={1.02} className="tool-actions">
+      <RiseIn delay={0.85} className="tool-actions">
         <button
           type="button"
           className="btn btn-primary"
