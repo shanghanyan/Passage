@@ -1,22 +1,19 @@
 import { useEffect } from "react";
 import { useLauncherSession } from "../hooks/useLauncherSession";
 import { usePassageFlow } from "../hooks/usePassageFlow";
+import { useUiLocale } from "../i18n/useUiLocale";
+import { pingServerHealth } from "../lib/api-fetch";
 import { AnalysisView } from "./AnalysisView";
+import { ConnectionLostView } from "./ConnectionLostView";
 import { EditRedactPhase } from "./EditRedactPhase";
 import { InputPhase } from "./InputPhase";
+import { LandingScroll } from "./LandingScroll";
 import { LoadingState } from "./LoadingState";
 import { PrivacyTab } from "./PrivacyTab";
 
-const PHASE_LABELS: Record<string, string> = {
-  input: "1 · Paste",
-  preview: "2 · Privacy review",
-  translating: "3 · Translating",
-  done: "4 · Results",
-  blocked: "4 · Blocked",
-};
-
 export function PassageApp() {
   const flow = usePassageFlow();
+  const { t } = useUiLocale(flow.uiLocale);
   useLauncherSession();
 
   useEffect(() => {
@@ -41,21 +38,68 @@ export function PassageApp() {
     };
   }, []);
 
+  useEffect(() => {
+    const onOffline = () => flow.setConnectionLost(true);
+    window.addEventListener("offline", onOffline);
+    return () => window.removeEventListener("offline", onOffline);
+  }, [flow]);
+
+  useEffect(() => {
+    if (flow.connectionLost) return;
+    const id = window.setInterval(() => {
+      void pingServerHealth().then((ok) => {
+        if (!ok) flow.setConnectionLost(true);
+      });
+    }, 30_000);
+    return () => window.clearInterval(id);
+  }, [flow.connectionLost, flow]);
+
   const showResults = flow.phase === "done" || flow.phase === "blocked" || flow.phase === "translating";
+
+  const phaseLabels = {
+    input: t("phase.paste"),
+    preview: t("phase.privacy"),
+    translating: t("phase.translating"),
+    done: t("phase.yourDocument"),
+    blocked: t("phase.blocked"),
+  };
+
+  if (flow.connectionLost) {
+    return (
+      <div className="passage-shell passage-workflow">
+        <nav className="nav" id="mainNav">
+          <div className="nav-row nav-row--swapped">
+            {flow.phase !== "input" && flow.phase !== "edit" && (
+              <button type="button" className="nav-cta nav-cta--left" onClick={flow.startOver}>
+                <i className="ti ti-file-plus" /> {t("nav.newDocument")}
+              </button>
+            )}
+            <button type="button" className="nav-logo nav-logo--right" onClick={flow.startOver} style={{ border: "none", background: "none" }}>
+              <div className="nav-cross">✛</div>
+              <div className="nav-wordmark">PASSAGE</div>
+            </button>
+          </div>
+        </nav>
+        <main className="passage-main workflow-main">
+          <ConnectionLostView flow={flow} />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="passage-shell passage-workflow">
       <nav className="nav" id="mainNav">
-        <div className="nav-row">
-          <button type="button" className="nav-logo" onClick={flow.startOver} style={{ border: "none", background: "none" }}>
+        <div className="nav-row nav-row--swapped">
+          {flow.phase !== "input" && flow.phase !== "edit" && (
+            <button type="button" className="nav-cta nav-cta--left" onClick={flow.startOver}>
+              <i className="ti ti-file-plus" /> {t("nav.newDocument")}
+            </button>
+          )}
+          <button type="button" className="nav-logo nav-logo--right" onClick={flow.startOver} style={{ border: "none", background: "none" }}>
             <div className="nav-cross">✛</div>
             <div className="nav-wordmark">PASSAGE</div>
           </button>
-          {flow.phase !== "input" && flow.phase !== "edit" && (
-            <button type="button" className="nav-cta" onClick={flow.startOver}>
-              <i className="ti ti-file-plus" /> New document
-            </button>
-          )}
         </div>
         <div className="workflow-phase-strip">
           {(["input", "preview", "translating", "done"] as const).map((step) => {
@@ -64,13 +108,14 @@ export function PassageApp() {
               (step === "done" && (flow.phase === "done" || flow.phase === "blocked")) ||
               (step === "translating" && flow.phase === "translating");
             const reached =
-              (step === "input") ||
-              (step === "preview" && (flow.phase !== "input" && flow.phase !== "edit")) ||
-              (step === "translating" && (flow.phase === "translating" || flow.phase === "done" || flow.phase === "blocked")) ||
+              step === "input" ||
+              (step === "preview" && flow.phase !== "input" && flow.phase !== "edit") ||
+              (step === "translating" &&
+                (flow.phase === "translating" || flow.phase === "done" || flow.phase === "blocked")) ||
               (step === "done" && (flow.phase === "done" || flow.phase === "blocked"));
             return (
               <span key={step} className={`workflow-phase${active ? " active" : ""}${reached ? " reached" : ""}`}>
-                {step === "done" && flow.phase === "blocked" ? PHASE_LABELS.blocked : PHASE_LABELS[step]}
+                {step === "done" && flow.phase === "blocked" ? phaseLabels.blocked : phaseLabels[step]}
               </span>
             );
           })}
@@ -79,7 +124,15 @@ export function PassageApp() {
 
       <main className="passage-main workflow-main">
         <div className="workflow-inner">
-          {flow.phase === "input" && <InputPhase flow={flow} />}
+          {flow.phase === "input" && (
+            <>
+              <LandingScroll
+                flow={flow}
+                onGetStarted={() => flow.setShowTool(true)}
+              />
+              {(flow.showTool || flow.rawText.trim()) && <InputPhase flow={flow} />}
+            </>
+          )}
 
           {flow.phase === "edit" && <EditRedactPhase flow={flow} />}
 

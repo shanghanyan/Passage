@@ -1,19 +1,24 @@
 import type { PassageFlow, AnalysisTab } from "../hooks/usePassageFlow";
+import { useUiLocale } from "../i18n/useUiLocale";
 import { PrivacyTab } from "./PrivacyTab";
+import { RelatedDocumentsTab } from "./RelatedDocumentsTab";
 import { TranslationTab } from "./TranslationTab";
 import { VoiceTab } from "./VoiceTab";
-
-const TABS: Array<{ id: AnalysisTab; label: string; icon: string }> = [
-  { id: "translation", label: "Translation", icon: "ti-language" },
-  { id: "privacy", label: "Privacy", icon: "ti-shield-lock" },
-  { id: "voice", label: "Voice Q&A", icon: "ti-microphone" },
-];
 
 interface AnalysisViewProps {
   flow: PassageFlow;
 }
 
 export function AnalysisView({ flow }: AnalysisViewProps) {
+  const { t } = useUiLocale(flow.uiLocale);
+
+  const TABS: Array<{ id: AnalysisTab; label: string; icon: string }> = [
+    { id: "translation", label: t("tab.translation"), icon: "ti-language" },
+    { id: "privacy", label: t("tab.privacy"), icon: "ti-shield-lock" },
+    { id: "voice", label: t("tab.voice"), icon: "ti-microphone" },
+    { id: "documents", label: t("tab.documents"), icon: "ti-checklist" },
+  ];
+
   return (
     <div className="workspace show">
       <div className="workspace-back">
@@ -53,6 +58,9 @@ export function AnalysisView({ flow }: AnalysisViewProps) {
       </div>
       <div className={`tab-panel${flow.activeTab === "voice" ? " show" : ""}`}>
         {flow.activeTab === "voice" && <VoiceTab flow={flow} />}
+      </div>
+      <div className={`tab-panel${flow.activeTab === "documents" ? " show" : ""}`}>
+        {flow.activeTab === "documents" && <RelatedDocumentsTab flow={flow} />}
       </div>
     </div>
   );

@@ -1,5 +1,4 @@
-import { findPassportSpans, detectAddressStreetShape, PII_PATTERNS } from "./patterns";
-import { detectNerSpans } from "./ner";
+import { findPassportSpans, detectAddressStreetShape, detectNameSpans, PII_PATTERNS } from "./patterns";
 import { mergeSpans } from "./merge-spans";
 import { validateSpans } from "./validate-spans";
 import type { DetectedSpan, PiiType } from "./types";
@@ -34,6 +33,7 @@ export function detectRegexOnly(text: string): DetectedSpan[] {
       source: "regex" as const,
     })),
     ...findPassportSpans(text).map((s) => ({ ...s, type: "PASSPORT" as const, source: "regex" as const })),
+    ...detectNameSpans(text).map((s) => ({ ...s, type: "NAME" as const, source: "regex" as const })),
   ];
   return validateSpans(mergeSpans(regexResults), text);
 }
@@ -55,6 +55,7 @@ export async function detectPiiWithStatus(
   }
 
   try {
+    const { detectNerSpans } = await import("./ner");
     const nerResults = await detectNerSpans(text);
     return { spans: validateSpans(mergeSpans([...regexResults, ...nerResults]), text) };
   } catch (err) {

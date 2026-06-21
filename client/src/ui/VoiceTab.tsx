@@ -169,7 +169,7 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
   const isLive = listening || connecting;
 
   return (
-    <>
+    <div className="voice-tab-stack">
       {isLive && (
         <div className="voice-mic-disclaimer voice-mic-disclaimer-live">
           <strong>Please type any ID numbers — don&apos;t say them out loud.</strong> Speak in {lang}. Audio goes to
@@ -177,7 +177,7 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
         </div>
       )}
 
-      <div className={`summary-card voice-panel${isLive ? " voice-panel-live" : ""}`}>
+      <div className={`summary-card voice-panel voice-panel-stable${isLive ? " voice-panel-live" : ""}`}>
         <div className="summary-level">
           <span className="level-label">Ask about this letter</span>
           {isLive && <span className="mic-pulse" aria-hidden="true" />}
@@ -192,7 +192,7 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
         <div className="tool-actions" style={{ marginBottom: 16 }}>
           <button
             type="button"
-            className={`btn ${isLive ? "btn-ghost" : "btn-red"}`}
+            className={`btn ${isLive ? "btn-ghost" : "btn-primary"}`}
             onClick={() => void toggleMic()}
             disabled={busy}
           >
@@ -222,8 +222,8 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
         </label>
         <textarea
           id="voice-transcript"
-          className="voice-textarea"
-          rows={3}
+          className="voice-textarea voice-textarea-stable"
+          rows={4}
           value={displayTranscript}
           onChange={(e) => {
             setTranscript(e.target.value);
@@ -240,38 +240,41 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
         )}
       </div>
 
-      {busy && (
-        <LoadingState
-          variant="panel"
-          title="Processing your question"
-          subtitle="Redacting in browser, then Claude answers from tokenized context only."
-        />
-      )}
-
-      {voiceError && (
-        <p className="passage-error" role="alert">
-          {voiceError}
-        </p>
-      )}
-
-      {voiceMeta && <p className="notice">{voiceMeta}</p>}
-
-      {answer && flow.redaction && (
-        <div className="summary-card">
-          <div className="summary-level">
-            <span className="level-label">Answer (tokenized)</span>
-          </div>
-          <div className="summary-text">{renderTokenHighlights(answer, flow.redaction.tokenMeta)}</div>
-          <ExplanationTts
-            claudeTokenizedText={answer}
-            ttsText={ttsText}
-            targetLanguage={flow.targetLanguage}
-            langCode={flow.langCode}
-            label="Listen to answer"
-            autoPlay={autoPlayAnswer}
+      <div className="voice-answer-slot">
+        {busy && (
+          <LoadingState
+            variant="panel"
+            title="Processing your question"
+            subtitle="Redacting in browser, then Claude answers from tokenized context only."
           />
-        </div>
-      )}
-    </>
+        )}
+
+        {voiceError && (
+          <p className="passage-error" role="alert">
+            {voiceError}
+          </p>
+        )}
+
+        {voiceMeta && <p className="notice">{voiceMeta}</p>}
+
+        {answer && flow.redaction && (
+          <div className="summary-card">
+            <div className="summary-level">
+              <span className="level-label">Answer (tokenized)</span>
+            </div>
+            <div className="summary-text">{renderTokenHighlights(answer, flow.redaction.tokenMeta)}</div>
+            <ExplanationTts
+              claudeTokenizedText={answer}
+              ttsText={ttsText}
+              targetLanguage={flow.targetLanguage}
+              langCode={flow.langCode}
+              uiLocale={flow.uiLocale}
+              label="Listen to answer"
+              autoPlay={autoPlayAnswer}
+            />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

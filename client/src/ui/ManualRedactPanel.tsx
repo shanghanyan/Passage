@@ -3,7 +3,8 @@ import { PII_TYPES, piiLabel } from "./helpers";
 import type { PassageFlow } from "../hooks/usePassageFlow";
 import type { DetectedSpan, PiiType } from "../lib/types";
 
-export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
+/** Inline manual PII marking on source text — merges with auto-detection on re-analyze. */
+export function ManualRedactPanel({ flow }: { flow: PassageFlow }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [selection, setSelection] = useState<{ start: number; end: number; text: string } | null>(null);
 
@@ -13,11 +14,6 @@ export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
     const start = el.selectionStart;
     const end = el.selectionEnd;
     if (start === end) {
-      setSelection(null);
-      return;
-    }
-    const text = flow.rawText.slice(start, end).trim();
-    if (!text) {
       setSelection(null);
       return;
     }
@@ -42,29 +38,23 @@ export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
   );
 
   return (
-    <section className="workflow-card">
-      <div className="workflow-card-head">
-        <h2>Edit &amp; re-redact</h2>
-        <p className="notice">
-          Highlight any text you want treated as sensitive, choose a type, then re-analyze. Manual selections merge
-          with automatic detection.
-        </p>
-      </div>
-
-      <label className="level-label" htmlFor="edit-redact-text">
-        Original text — highlight a span to redact
-      </label>
+    <div className="manual-redact-panel">
+      <p className="level-label">Mark additional PII in source text</p>
+      <p className="notice" style={{ marginBottom: 10 }}>
+        Highlight any text the auto-detector missed, choose a type, then re-analyze. Manual marks merge with
+        automatic detection.
+      </p>
       <textarea
-        id="edit-redact-text"
         ref={textareaRef}
-        className="voice-textarea workflow-textarea edit-redact-textarea"
-        rows={12}
+        className="voice-textarea workflow-textarea manual-redact-source"
+        rows={6}
         value={flow.rawText}
-        onChange={(e) => flow.setRawText(e.target.value)}
+        readOnly
         onSelect={readSelection}
         onMouseUp={readSelection}
         onKeyUp={readSelection}
         spellCheck={false}
+        aria-label="Source text for manual PII selection"
       />
 
       {selection && (
@@ -84,7 +74,7 @@ export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
 
       {flow.manualSpans.length > 0 && (
         <div className="manual-span-list">
-          <span className="level-label">Manual redactions ({flow.manualSpans.length})</span>
+          <span className="level-label">Manual marks ({flow.manualSpans.length})</span>
           <ul>
             {flow.manualSpans.map((span, i) => (
               <li key={`${span.start}-${span.end}-${span.type}-${i}`}>
@@ -101,14 +91,11 @@ export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
         </div>
       )}
 
-      <div className="tool-actions" style={{ marginTop: 16 }}>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={flow.startOver}>
-          <i className="ti ti-arrow-left" /> Cancel
-        </button>
+      <div className="tool-actions" style={{ marginTop: 12 }}>
         <button
           type="button"
-          className="btn btn-primary"
-          disabled={flow.detecting || !flow.rawText.trim()}
+          className="btn btn-primary btn-sm"
+          disabled={flow.detecting || flow.manualSpans.length === 0}
           onClick={() => void flow.runDetection()}
         >
           {flow.detecting ? (
@@ -117,11 +104,11 @@ export function EditRedactPhase({ flow }: { flow: PassageFlow }) {
             </>
           ) : (
             <>
-              <i className="ti ti-wand" /> Re-analyze &amp; redact
+              <i className="ti ti-wand" /> Re-analyze with manual marks
             </>
           )}
         </button>
       </div>
-    </section>
+    </div>
   );
 }

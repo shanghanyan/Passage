@@ -2,8 +2,11 @@ import "dotenv/config";
 import "./instrumentation.js";
 import cors from "cors";
 import express from "express";
+import multer from "multer";
 import { initSentry } from "./lib/sentry.js";
 import { postDeepgramToken } from "./routes/deepgram-token.js";
+import { postExtractDocument } from "./routes/extract-document.js";
+import { postRelatedDocuments } from "./routes/related-documents.js";
 import { postRedactionSessionToken } from "./routes/redaction-session-token.js";
 import { postScoreRedaction } from "./routes/score-redaction.js";
 import { postTranslate } from "./routes/translate.js";
@@ -17,10 +20,17 @@ initSentry();
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 app.use(cors());
 app.post("/api/voice/transcribe", express.raw({ type: "*/*", limit: "10mb" }), (req, res) => {
   void postVoiceTranscribe(req, res);
+});
+app.post("/api/extract-document", upload.single("file"), (req, res) => {
+  void postExtractDocument(req, res);
 });
 app.use(express.json());
 
@@ -43,6 +53,9 @@ app.post("/api/voice/speak", (req, res) => {
 });
 app.post("/api/translate", (req, res) => {
   void postTranslate(req, res);
+});
+app.post("/api/related-documents", (req, res) => {
+  void postRelatedDocuments(req, res);
 });
 
 async function main() {

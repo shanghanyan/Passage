@@ -2,21 +2,34 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 :root{
-  --bg:#1A1A1A;
-  --surface:#232323;
-  --surface2:#2B2B2B;
-  --surface3:#333;
-  --cream:#E5DFD0;
-  --cream-dim:#9B9489;
-  --cream-faint:#5A5650;
-  --red:#D42929;
-  --red-dark:#B82020;
-  --red-glow:rgba(212,41,41,0.18);
-  --border:#383838;
-  --border-dim:#2A2A2A;
-  --white:#F0EBE0;
+  --bg:#F9F9F6;
+  --surface:#FFFFFF;
+  --surface2:#F3F2EE;
+  --surface3:#EBE9E4;
+  --text-primary:#1F1811;
+  --text-secondary:#615038;
+  --text-muted:#9C9A95;
+  --accent:#482712;
+  --accent-dark:#3A1F0E;
+  --accent-soft:rgba(72,39,18,0.08);
+  --error:#A94442;
+  --error-dark:#8B3A38;
+  --error-soft:rgba(169,68,66,0.1);
+  --warning:#8A6D1F;
+  --warning-soft:rgba(138,109,31,0.12);
+  --cream:var(--text-primary);
+  --cream-dim:var(--text-secondary);
+  --cream-faint:var(--text-muted);
+  --white:var(--text-primary);
+  --border:#CBC9C4;
+  --border-dim:#E5E3DE;
+  --red:var(--accent);
+  --red-dark:var(--accent-dark);
+  --red-glow:var(--accent-soft);
+  --font-display:'Fraunces',Georgia,serif;
+  --font-body:'Source Sans 3','Helvetica Neue',Arial,sans-serif;
 }
-body{background:var(--bg);color:var(--cream);font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;overflow-x:hidden;min-height:100vh}
+body{background:var(--bg);color:var(--text-primary);font-family:var(--font-body);overflow-x:hidden;min-height:100vh}
 a{color:inherit;text-decoration:none}
 
 /* ── SCROLL ANIMATIONS ── */
@@ -33,14 +46,14 @@ a{color:inherit;text-decoration:none}
   transition:background .3s,border-bottom .3s,padding .3s;
 }
 .nav.stuck{
-  background:rgba(26,26,26,0.96);
+  background:rgba(249,249,246,0.98);
   backdrop-filter:blur(12px);
   border-bottom:1px solid var(--border);
   padding:12px 48px;
 }
 .nav-logo{display:flex;align-items:center;gap:9px;cursor:pointer}
-.nav-cross{color:var(--red);font-size:22px;font-weight:900;line-height:1}
-.nav-wordmark{font-family:'Bebas Neue',sans-serif;font-size:30px;letter-spacing:.12em;color:var(--white)}
+.nav-cross{color:var(--accent);font-size:22px;font-weight:900;line-height:1}
+.nav-wordmark{font-family:var(--font-display);font-size:30px;letter-spacing:.12em;color:var(--text-primary)}
 .nav-links{display:flex;align-items:center;gap:36px}
 .nav-link{font-size:11px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-dim);cursor:pointer;transition:color .2s}
 .nav-link:hover{color:var(--cream)}

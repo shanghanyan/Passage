@@ -17,7 +17,10 @@
     "verify:sentry-browser": "tsx scripts/trigger-sentry-browser.mjs",
     "verify:explanation-tts": "tsx scripts/verify-explanation-tts.mjs",
     "verify:voice-redaction": "tsx scripts/verify-voice-redaction.mjs",
-    "verify:all": "npm run verify:validation && npm run verify:regex && npm run verify:redact && npm run verify:voice-redaction && npm run verify:explanation-tts"
+    "verify:upload-redaction": "node scripts/verify-upload-redaction.mjs",
+    "verify:ui-locale": "node scripts/verify-ui-locale-default.mjs",
+    "verify:name-detection": "tsx scripts/verify-name-detection.mjs",
+    "verify:all": "npm run verify:validation && npm run verify:regex && npm run verify:redact && npm run verify:voice-redaction && npm run verify:explanation-tts && npm run verify:upload-redaction && npm run verify:ui-locale && npm run verify:name-detection"
   },
   "dependencies": {
     "@deepgram/sdk": "^5.4.0",

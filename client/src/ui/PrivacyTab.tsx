@@ -1,3 +1,4 @@
+import { ManualRedactPanel } from "./ManualRedactPanel";
 import { TYPE_COLORS, piiBadgeClass, piiLabel, renderTokenHighlights } from "./helpers";
 import type { PassageFlow } from "../hooks/usePassageFlow";
 
@@ -84,14 +85,16 @@ export function PrivacyTab({ flow }: { flow: PassageFlow }) {
         </div>
       </div>
 
+      {canSend && <ManualRedactPanel flow={flow} />}
+
       {canSend && (
         <div className="tool-actions" style={{ marginTop: 16 }}>
           <button type="button" className="btn btn-ghost btn-sm" onClick={flow.enterEditMode}>
-            <i className="ti ti-edit" /> Edit &amp; re-redact
+            <i className="ti ti-edit" /> Full-screen edit mode
           </button>
           <button
             type="button"
-            className="btn btn-red"
+            className="btn btn-primary"
             disabled={sendBlocked}
             onClick={() => void flow.sendForTranslation()}
           >

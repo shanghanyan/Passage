@@ -3,21 +3,30 @@ import { formatError } from "../lib/errors";
 import { extractExplanationText, ttsVoiceForLanguage } from "../lib/explanation-text";
 import { hasNativeTtsVoice } from "../lib/languages";
 import { fetchSpeakAudio } from "../lib/voice";
+import { useUiLocale } from "../i18n/useUiLocale";
 
 interface ExplanationTtsProps {
   claudeTokenizedText: string;
   targetLanguage: string;
   langCode: string;
+  uiLocale: import("../i18n/strings").UiLocale;
   label?: string;
   autoPlay?: boolean;
   /** Server-computed TTS payload — avoids client/server extract drift. */
   ttsText?: string;
 }
 
+const SPEED_OPTIONS = [
+  { rate: 1, key: "tts.speedNormal" as const },
+  { rate: 2, key: "tts.speed2x" as const },
+  { rate: 4, key: "tts.speed4x" as const },
+];
+
 export function ExplanationTts({
   claudeTokenizedText,
   targetLanguage,
   langCode,
+  uiLocale,
   label = "Listen to explanation",
   autoPlay = false,
   ttsText,
@@ -25,7 +34,9 @@ export function ExplanationTts({
   const [loading, setLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const autoPlayedRef = useRef(false);
+  const { t } = useUiLocale(uiLocale);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const blobUrlRef = useRef<string | null>(null);
@@ -70,6 +81,12 @@ export function ExplanationTts({
     }
   }, [explanation, targetLanguage]);
 
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackRate;
+    }
+  }, [playbackRate]);
+
   const handlePlayPause = useCallback(async () => {
     try {
       if (playing && audioRef.current) {
@@ -78,12 +95,13 @@ export function ExplanationTts({
       }
       await ensureAudioLoaded();
       if (!audioRef.current) return;
+      audioRef.current.playbackRate = playbackRate;
       await audioRef.current.play();
     } catch (err) {
       setError(formatError(err));
       cleanupAudio();
     }
-  }, [playing, ensureAudioLoaded, cleanupAudio]);
+  }, [playing, ensureAudioLoaded, cleanupAudio, playbackRate]);
 
   useEffect(() => {
     if (!autoPlay || !explanation.trim() || autoPlayedRef.current) return;
@@ -132,6 +150,22 @@ export function ExplanationTts({
           {error}
         </span>
       )}
+      <div className="tts-speed-control" aria-label={t("tts.speed")}>
+        <span className="tts-speed-label">{t("tts.speed")}</span>
+        {SPEED_OPTIONS.map((opt) => (
+          <button
+            key={opt.rate}
+            type="button"
+            className={`tts-speed-btn${playbackRate === opt.rate ? " active" : ""}`}
+            onClick={() => {
+              setPlaybackRate(opt.rate);
+              if (audioRef.current) audioRef.current.playbackRate = opt.rate;
+            }}
+          >
+            {t(opt.key)}
+          </button>
+        ))}
+      </div>
       <details className="voice-tts-details">
         <summary>TTS payload</summary>
         <pre className="voice-tts-payload">{explanation}</pre>

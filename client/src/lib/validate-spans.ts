@@ -18,7 +18,7 @@ export function validateSpans(spans: DetectedSpan[], text: string): DetectedSpan
     if (!Number.isFinite(s.start) || !Number.isFinite(s.end)) return false;
     if (s.start < 0 || s.end > len || s.start >= s.end) return false;
     const spanLen = s.end - s.start;
-    if (spanLen > len * MAX_NER_FRACTION) return false;
+    if (spanLen > len * MAX_NER_FRACTION && s.source !== "regex") return false;
     if (spanLen > spanMaxLen(s, text)) return false;
     const slice = text.slice(s.start, s.end);
     if (slice.includes("\n") && s.type === "NAME") return false;

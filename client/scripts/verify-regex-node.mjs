@@ -23,7 +23,7 @@ const types = new Set(spans.map((s) => s.type));
 assert(types.has("A_NUMBER"), "A_NUMBER");
 assert(types.has("SSN"), "SSN");
 assert(types.has("DOB"), "DOB");
-assert(!types.has("NAME"), "NAME is NER-only in Passage (not regex)");
+assert(types.has("NAME"), "NAME via label-anchored regex");
 
 console.log("Spans:", spans.map((s) => `${s.type}@${s.start}-${s.end}`).join(", "));
 console.log(process.exitCode ? "\nVERIFY REGEX FAILED" : "\nVERIFY REGEX PASSED");

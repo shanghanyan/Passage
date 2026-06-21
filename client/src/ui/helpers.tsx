@@ -4,12 +4,12 @@ import type { PiiType, TokenMeta } from "../lib/types";
 export const PII_TYPES: PiiType[] = ["NAME", "A_NUMBER", "SSN", "DOB", "PASSPORT", "ADDRESS"];
 
 export const TYPE_COLORS: Record<string, string> = {
-  A_NUMBER: "#dc2626",
-  SSN: "#ea580c",
-  DOB: "#9333ea",
-  PASSPORT: "#2563eb",
-  NAME: "#16a34a",
-  ADDRESS: "#d97706",
+  A_NUMBER: "#7A4A2E",
+  SSN: "#6B5344",
+  DOB: "#5C4A6E",
+  PASSPORT: "#4A5568",
+  NAME: "#3D5C4A",
+  ADDRESS: "#6E5A3D",
 };
 
 export function tokenTypeFromString(token: string): string {
@@ -38,17 +38,12 @@ export function renderTokenHighlights(
       return <span key={i}>{part}</span>;
     }
     const type = tokenTypeFromString(part);
-    const color = TYPE_COLORS[type] ?? "#999";
     return (
       <mark
         key={i}
-        className="token-highlight"
-        style={{
-          backgroundColor: `${color}33`,
-          borderColor: color,
-          color: "inherit",
-        }}
+        className="token-redaction-bar"
         title={tooltipForToken(part, tokenMeta)}
+        aria-label={`Redacted ${type}`}
       >
         {part}
       </mark>

@@ -7,6 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "build": "tsc",
+    "test:document-extract": "tsx scripts/test-document-extract.ts",
     "test:phases": "tsx scripts/test-phases.ts",
     "test:phase5": "tsx scripts/test-phase5.ts",
     "test:phase6": "tsx scripts/test-phase6.ts",
@@ -29,11 +30,15 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "redis": "^4.7.0"
+    "multer": "^2.2.0",
+    "pdfjs-dist": "^6.0.227",
+    "redis": "^4.7.0",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
+    "@types/multer": "^2.1.0",
     "@types/node": "^22.10.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
