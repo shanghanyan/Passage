@@ -1,6 +1,6 @@
 # Passage — Project Architecture & File Reference
 
-**Passage** is a UC Berkeley AI Hackathon 2026 (World Track) demo: paste U.S. immigration correspondence, detect and redact PII entirely in the browser, translate and explain it via Claude in 10 languages, then ask follow-up questions by voice — with a hard privacy boundary so raw identifiers never reach external APIs.
+**Passage** is a UC Berkeley AI Hackathon 2026 (World Track) demo: paste U.S. immigration correspondence, detect and redact PII entirely in the browser, translate and explain it via Claude in 11 languages, then ask follow-up questions by voice — with a hard privacy boundary so raw identifiers never reach external APIs.
 
 This document describes the system architecture, every source file in the repository, what each file depends on, and an honest assessment of what is technically strong versus what is conventional or hackathon-scoped.
 
@@ -125,15 +125,15 @@ input → (optional edit) → preview → translating → done | blocked
 
 ### Landing and language
 
-1. **Landing scroll** — hero + about copy; **language picker** (`LanguageSelect` on `LandingScroll`) sets `langCode` before the user pastes a document.
-2. **UI locale** — derived from `langCode` via `uiLocaleFromLangCode()`; nav, redaction review, tabs, voice controls, loading overlays, and TTS warnings all use `t()` / `tf()` from `useUiLocale`.
+1. **Landing scroll** — hero + about copy; **language picker** (`LanguageSelect` on `LandingScroll`) sets `langCode` before the user pastes a document. Choice persists via `locale-storage.ts` (`localStorage`).
+2. **UI locale** — derived from `langCode` via `uiLocaleFromLangCode()`; nav, redaction review, tabs, voice controls, loading overlays, connection-lost screen, and TTS warnings all use `t()` / `tf()` from `useUiLocale`.
 3. **Get started** — scrolls to the paste/upload tool (`InputPhase`).
 
 ### Redaction through results
 
 4. **Input** — paste, upload `.txt` (client-only), or upload PDF/image (server extract with privacy gate); optional synthetic demo chips.
 5. **Analyze** — in-browser detection (regex + optional NER); scroll resets to top so **scrubbed preview** is visible first.
-6. **Edit** (optional) — full-screen manual span marking (`EditRedactPhase`) or collapsed **optional manual redact** panel on Privacy tab.
+6. **Edit** (optional) — full-screen manual span marking (`EditRedactPhase`) or collapsed **optional manual redact** panel on Privacy tab; both use `ManualRedactToolbar` with optional **match-all** for repeated strings (`manual-match.ts`).
 7. **Privacy preview** — per-type counts, token highlights, send gate, expandable Claude payload.
 8. **Send for translation** — mint session, register marker, POST redacted text.
 9. **Results tabs** — Translation (side-by-side tokens + manual TTS listen), Privacy (audit), Voice Q&A (STT → redact → Claude; optional auto-play answer), **Related documents** (prefetched on translate success).
@@ -147,6 +147,7 @@ Planted demo documents intentionally trigger **detection gaps** (address leak) o
 | Piece | Location | Behavior |
 |-------|----------|----------|
 | **Core strings** | `client/src/i18n/strings.ts` | Base English + per-locale overrides (`en`, `es`, `fr`, `zh`, `vi`, `ko`, `pt`, `ar`, `hi`, `tl`, `uk`) |
+| **Locale persistence** | `client/src/i18n/locale-storage.ts` | `readPersistedLangCode()` / `persistLangCode()` — survives connection-lost screen |
 | **Workflow UI** | `client/src/i18n/workflow-ui.ts` | Redaction, edit, loading, PII labels, upload errors — merged at build |
 | **Voice / TTS UI** | `client/src/i18n/voice-tts-ui.ts` | Voice tab + `ExplanationTts` bar strings — merged at build |
 | **Hook** | `client/src/i18n/useUiLocale.ts` | `t(key)`, `tf(key, {vars})` for placeholder substitution |
@@ -241,9 +242,10 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | `explanation-text.ts` | Extracts “explanation” section from Claude output for TTS; maps language → Deepgram Aura-2 voice ID | — | **Useful** — multilingual section markers + voice routing |
 | `prepare-voice-question.ts` | Redacts voice transcript before any network call; verifies no raw leak | `detect`, `redact`, `validate-spans` | **Impressive** — enforces voice privacy boundary |
 | `voice.ts` | Deepgram live STT (WebSocket + MediaRecorder), voice Q&A fetch, TTS MP3 fetch; token vs server-proxy modes | `@deepgram/sdk`, `./errors` | **Impressive** — dual auth, full voice stack |
-| `languages.ts` | 10 translation languages; STT/TTS capability metadata; `PANEL_LABELS` for translation panes | — | Clean config |
+| `languages.ts` | 11 translation languages; STT/TTS capability metadata; `PANEL_LABELS` for translation panes | — | Clean config |
+| `manual-match.ts` | Exact-string occurrence search for manual redact match-all | — | Small helper |
 | `extract-document.ts` | Client helpers for `.txt` read, PDF/image server POST to `/api/extract-document` | `api-fetch` | Upload path with privacy gate |
-| `api-fetch.ts` | Fetch wrapper with connection-lost detection for launcher health | — | Resilience helper |
+| `api-fetch.ts` | Fetch wrapper with connection-lost detection; `pingServerHealth()` | — | Resilience helper |
 | `redis.ts` | Mints scoped Upstash creds via server; writes PII-free session marker from browser | `fetch` → `/api/redaction-session-token`, Upstash REST | **Impressive** — scoped creds pattern |
 | `score-redaction.ts` | Computes recall vs ground truth; POSTs metrics to server | `fetch` → `/api/score-redaction` | Clean metrics bridge |
 | `sentry.ts` | Browser Sentry init with scrub hook | `@sentry/react`, `sentry-scrub` | Standard |
@@ -256,6 +258,7 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | File | Purpose | Uses | Assessment |
 |------|---------|------|------------|
 | `strings.ts` | Core UI string keys, locale tables, `t()` / `tf()` / `piiLabel()` / `uiLocaleFromLangCode()` | merges `workflow-ui`, `voice-tts-ui` | **Core** — single source for chrome copy |
+| `locale-storage.ts` | Persist `langCode` in `localStorage` for connection-lost and return visits | — | Small persistence layer |
 | `workflow-ui.ts` | Redaction, edit, loading, upload error strings (all 11 locales) | merged into `strings.ts` | Large patch file — keeps strings.ts readable |
 | `voice-tts-ui.ts` | Voice tab + TTS bar strings (all 11 locales) | merged into `strings.ts` | Voice/translation listen UX copy |
 | `useUiLocale.ts` | React hook: `t(key)`, `tf(key, vars)` | `strings.ts` | Standard i18n hook |
@@ -264,7 +267,7 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 
 | File | Purpose | Uses | Assessment |
 |------|---------|------|------------|
-| `synthetic-docs.ts` | 9 hand-labeled synthetic immigration docs + 2 planted failure docs with expected spans | `../lib/types` | **Impressive** — ground truth for recall demos |
+| `synthetic-docs.ts` | 9 synthetic docs (7 hand-labeled + 2 planted failures) with expected spans | `../lib/types` | **Impressive** — ground truth for recall demos |
 
 ### `client/src/hooks/`
 
@@ -277,14 +280,15 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 
 | File | Purpose | Uses | Assessment |
 |------|---------|------|------------|
-| `PassageApp.tsx` | Main shell: nav (logo left, **New document** right), phase strip, landing scroll, phase routing, scroll-to-top on preview, footer, loading overlays, toasts, `lang`/`dir` on `<html>` | hooks, phase components, i18n | **Polished** workflow UX |
+| `PassageApp.tsx` | Main shell: nav, phase strip, landing scroll, phase routing, scroll-to-top on preview, **connection-lost gate** + health ping, footer, loading overlays, toasts, `lang`/`dir` on `<html>` | hooks, phase components, i18n | **Polished** workflow UX |
 | `LandingScroll.tsx` | Scroll landing hero + about; embeds `LanguageSelect`; get-started scroll to tool | `LanguageSelect`, i18n | **Entry UX** — language before paste |
 | `LanguageSelect.tsx` | Shared translation-language `<select>` (landing + reusable) | `LANGUAGES`, flow hook, i18n | Small shared control |
 | `InputPhase.tsx` | Paste area, file upload zone, synthetic doc chips, analyze (no language picker — moved to landing) | `FileUploadZone`, flow hook, i18n | Standard form phase |
 | `FileUploadZone.tsx` | Drag/drop `.txt` / PDF / image; server-extract privacy gate for non-txt | `extract-document`, i18n | Upload with ack UX |
-| `ManualRedactPanel.tsx` | Collapsible optional manual PII marks on Privacy tab | flow hook, i18n, `piiLabel` | Human-in-the-loop without dominating preview |
-| `ConnectionLostView.tsx` | Offline / server unreachable recovery UI | i18n | Resilience |
-| `EditRedactPhase.tsx` | Full-screen manual span selection, PII type assignment, re-analyze | `PII_TYPES`, flow hook, i18n | **Useful** — human-in-the-loop redaction |
+| `ManualRedactPanel.tsx` | Collapsible optional manual PII marks on Privacy tab | `ManualRedactToolbar`, flow hook, i18n | Human-in-the-loop without dominating preview |
+| `ManualRedactToolbar.tsx` | Shared toolbar: PII type picker, match-all prompt, commit/cancel | `manual-match`, flow hook, i18n | Reused by edit + privacy manual redact |
+| `ConnectionLostView.tsx` | Server unreachable recovery UI (localized retry; no start-over while disconnected) | i18n | Resilience |
+| `EditRedactPhase.tsx` | Full-screen manual span selection via `ManualRedactToolbar`, re-analyze | flow hook, i18n | **Useful** — human-in-the-loop redaction |
 | `PrivacyTab.tsx` | PII sidebar, token highlights, send gate, optional manual redact `<details>`, expandable Claude payload inspector | `./helpers`, i18n, `ManualRedactPanel` | **Impressive** — transparency for judges/devtools |
 | `AnalysisView.tsx` | Tab container: Translation / Privacy / Voice / **Related documents** | sub-tabs, i18n | Layout glue |
 | `TranslationTab.tsx` | Side-by-side tokenized source/translation; validation failure panel; `ExplanationTts` with localized listen label | `ExplanationTts`, `PANEL_LABELS`, `./helpers` | Core results view |
@@ -292,6 +296,7 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | `VoiceTab.tsx` | Mic STT, question redaction preview, Claude Q&A, optional **auto-play answer** checkbox, TTS playback | `prepareVoiceQuestion`, `voice`, `validate`, `ExplanationTts`, i18n | **Impressive** — end-to-end voice privacy |
 | `ExplanationTts.tsx` | Play/pause TTS for tokenized explanation text; localized fallback-voice warning | `explanation-text`, `voice`, i18n | **Good** — manual listen + translated warnings |
 | `LoadingState.tsx` | Reusable spinner (inline / panel / overlay variants) | React | Small reusable component |
+| `motion.tsx` | `RiseIn` scroll/mount animations, `CountUp` for stats | React | Landing + workflow polish |
 | `helpers.tsx` | Token highlight rendering, PII badges, colors, tooltips | React, `./types` | Shared UI utilities |
 | `DetectionTest.tsx` | Dev harness (`?detection-test`): detect, audit suite, fetch monitor, span debug | `audit-cases`, `detect`, `ner`, etc. | **Impressive** — QA dashboard in-app |
 | `DetectionTest.css` | Styles for detection test harness | — | Dev-only CSS |
@@ -315,7 +320,10 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | `verify-tokenized-ui.mjs` | Playwright: translation pane shows tokens, not raw values | Playwright | Privacy E2E |
 | `verify-explanation-tts.mjs` | Unit test explanation extraction + voice mapping | `explanation-text.ts` | Targeted safety |
 | `verify-voice-redaction.mjs` | Voice transcript redaction cases; documents known gaps | `prepare-voice-question.ts` | **Honest** — admits STT redaction limits |
-| `verify-ui-locale-default.mjs` | Guards: language picker on landing; `uiLocale` derives from `langCode` | reads hook + UI sources | i18n regression guard |
+| `verify-upload-redaction.mjs` | Extracted upload text must redact before translate payload | `patterns`, `redact` | Upload privacy guard |
+| `verify-name-detection.mjs` | Regex name detection cases (hyphenated, ALL CAPS, etc.) | `detect`, synthetic docs | Targeted detection QA |
+| `verify-ui-locale-default.mjs` | Guards: language picker on landing; `uiLocale` derives from `langCode`; connection-lost i18n | reads hook + UI sources | i18n regression guard |
+| `verify-connection-lost.mjs` | Playwright: connection-lost screen (client dev server only, no server) | Playwright | Resilience E2E |
 | `trigger-sentry-browser.mjs` | Playwright: mock bad translate → fail-closed UI beat | Playwright | Demo automation |
 | `capture-planted-translate-payload.mjs` | Playwright: Apt #4B doc blocks send (no translate call) | Playwright | Demo automation |
 
@@ -352,6 +360,7 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | `agent-memory.ts` | Redis Cloud Agent Memory REST client; stores redacted voice turns only | `fetch` | **Impressive** — safety asserts before persist |
 | `lang-cache.ts` | Redis LangCache semantic cache for voice FAQ; doc fingerprint in cache key | `node:crypto`, `./agent-memory` | **Impressive** — optional perf layer |
 | `related-documents.ts` | Claude JSON: immigration process + 5–8 associated doc types; `target_language` for localized labels | `@anthropic-ai/sdk`, `./sentry` | Informational tab — redacted input only |
+| `document-extract.ts` | PDF text layer + Tesseract OCR for image uploads; 10 MB limit | `pdfjs-dist`, `tesseract.js` | Server-side extract — client must redact before Claude |
 | `observability/index.ts` | Dual-target OTEL init: Phoenix vs Arize AX based on env | `./phoenix`, `./ax` | **Impressive** — pluggable observability |
 | `observability/phoenix.ts` | Phoenix OTEL registration + Anthropic auto-instrumentation | `@arizeai/phoenix-otel`, OpenInference Anthropic | Sponsor integration |
 | `observability/ax.ts` | Arize AX OTLP exporter + Anthropic instrumentation | `@opentelemetry/*`, OpenInference | Sponsor integration |
@@ -367,7 +376,7 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | `voice-question.ts` | LangCache lookup → Agent Memory history → Claude; TTS text extraction | agent-memory, lang-cache, claude, deepgram | **Impressive** — tiered voice stack |
 | `voice-speak.ts` | TTS endpoint returning MP3 buffer | `../lib/deepgram` | Thin proxy |
 | `voice-transcribe.ts` | Server-proxy STT for audio blobs | `../lib/deepgram` | Fallback when client can’t hold API key |
-| `extract-document.ts` | PDF text layer + image OCR path for uploads | multer, `./sentry` | Server-side extract with privacy tradeoff |
+| `extract-document.ts` | PDF/image upload handler → `document-extract.ts` | multer, `./sentry` | Server-side extract with privacy tradeoff |
 | `related-documents.ts` | POST handler: validates `redacted_text`, passes `target_language` to Claude | `../lib/related-documents` | Related docs tab API |
 | `launcher-session.ts` | In-memory heartbeat/goodbye for one-click launcher auto-shutdown | express | Clever but **not durable** (in-memory only) |
 
@@ -385,6 +394,7 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 | `test-phase5.ts` | Observability reachability + score-redaction API + batch recall runs | instrumentation, observability | Sponsor track tests |
 | `test-phase6.ts` | Deepgram token, TTS PII guard, voice question/speak endpoints | deepgram; live `:3001` | Voice integration tests |
 | `test-explanation-text.ts` | Server-side explanation extraction unit test | `explanation-text.js` | Small unit test |
+| `test-document-extract.ts` | PDF/image extraction smoke test | `document-extract.js` | Upload path unit test |
 | `score-redaction-set.ts` | Batch score all synthetic docs → OTEL spans for trend comparison | detection-patterns, score-redaction, synthetic-docs.json | **Impressive** benchmarking tool |
 | `trigger-sentry-validation.mjs` | Fire Sentry event with token keys only; writes audit JSON | `@sentry/node`, sentry-scrub | Demo/audit tooling |
 | `audit-sentry-payload.mjs` | Scan exported Sentry JSON for forbidden raw PII strings | `node:fs` | Privacy audit script |
@@ -405,13 +415,15 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 
 5. **Launcher lifecycle** — `launch.mjs` handles Docker Desktop auto-start, observability mode selection, heartbeat-driven shutdown, and macOS `.app` packaging with PATH fixes — polish most teams skip.
 
-6. **Planted failure modes** — Intentional detection and validation failures with Sentry beats demonstrate fail-closed behavior live.
+6. **Connection resilience** — Health pings, localized connection-lost screen (retry only), and `langCode` persistence keep the UX coherent when the server drops.
 
-7. **Voice stack layering** — LangCache → Agent Memory → Claude, with client-side redaction before any question hits the server, is a thoughtful optional enhancement path.
+7. **Planted failure modes** — Intentional detection and validation failures with Sentry beats demonstrate fail-closed behavior live.
 
-8. **Transparency UI** — Privacy tab with expandable Claude payload and per-type span counts supports “verify in devtools” claims.
+8. **Voice stack layering** — LangCache → Agent Memory → Claude, with client-side redaction before any question hits the server, is a thoughtful optional enhancement path.
 
-9. **Immigrant-facing i18n** — Eleven locale packs cover landing through voice/TTS warnings; UI language tied to translation target; related-documents responses localized server-side.
+9. **Transparency UI** — Privacy tab with expandable Claude payload and per-type span counts supports “verify in devtools” claims.
+
+10. **Immigrant-facing i18n** — Eleven locale packs cover landing through voice/TTS warnings; UI language tied to translation target; related-documents responses localized server-side.
 
 ### What is conventional or hackathon-scoped
 
@@ -472,4 +484,4 @@ Files are grouped by directory. **Excluded:** `node_modules/`, `package-lock.jso
 
 ---
 
-*Last updated for landing i18n, related-documents prefetch, voice auto-listen option, and localized TTS warnings. Excludes `node_modules/`, lock files, build output, logs, and Apple code signature binaries.*
+*Last updated for locale persistence, manual redact match-all, connection-lost UI, and upload/name verification scripts. Excludes `node_modules/`, lock files, build output, logs, and Apple code signature binaries.*

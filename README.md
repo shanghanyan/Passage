@@ -168,13 +168,72 @@ flowchart TB
 
 ---
 
+## Hackathon sponsor integrations
+
+This repo does not include an official sponsor-track list for UC Berkeley AI Hackathon 2026. The integrations below are **verified from source** — Anthropic, Redis, Sentry, Arize AX, and Deepgram only. We cannot confirm any additional sponsor tracks from the codebase alone.
+
+### Anthropic (Claude)
+
+**Model:** `claude-sonnet-4-6` via `@anthropic-ai/sdk`.
+
+| Use | Endpoint / location | What goes to Claude |
+|---|---|---|
+| **Translation + explanation** | `POST /api/translate` → `server/src/lib/claude.ts` | Redacted text with `⟦PII:TYPE:n⟧` tokens only |
+| **Voice Q&A** | `POST /api/voice/question` | Redacted document context + redacted question (transcript scrubbed in browser first) |
+| **Related documents** | `POST /api/related-documents` → `server/src/lib/related-documents.ts` | Redacted text + `target_language` for localized process/doc labels |
+
+Prompts enforce exact token preservation, plain-language explanation, and no legal advice. The server runs a startup “hello” probe against Claude before accepting traffic (`server/src/startup.ts`).
+
+### Redis
+
+Three distinct Redis surfaces — all **PII-free by design**:
+
+| Provider | Required? | Role |
+|---|---|---|
+| **Upstash** (`UPSTASH_REDIS_REST_*`) | **Yes** (or `REDIS_URL` TCP fallback for startup ping) | On translate, server mints scoped REST credentials (`POST /api/redaction-session-token`); browser writes a session marker directly to Upstash (`HSET` + 15‑min TTL). No raw identifiers stored. |
+| **Redis Cloud Agent Memory** (`AGENT_MEMORY_*`) | Optional | Multi-turn voice Q&A history — redacted user/assistant turns only (`server/src/lib/agent-memory.ts`). Safety asserts block raw PII before persist. |
+| **Redis Cloud LangCache** (`LANGCACHE_*`) | Optional | Semantic cache for paraphrased voice FAQ on the same redacted doc (`server/src/lib/lang-cache.ts`). Cache keys fingerprint the redacted text; responses stay tokenized. |
+
+Voice Q&A checks LangCache → Agent Memory → Claude in that order when configured (`server/src/routes/voice-question.ts`).
+
+### Sentry
+
+**Server (required):** `SENTRY_DSN` → `@sentry/node` in `server/src/lib/sentry.ts`. Captures Claude, Deepgram, and API failures via `captureExternalError`.
+
+**Browser (optional):** `VITE_SENTRY_CLIENT_DSN` → `@sentry/react` in `client/src/lib/sentry.ts`.
+
+Shared `sentry-scrub.ts` on client and server strips A-numbers, SSNs, DOB, passport, and address patterns from event text and extras. Typical events: post-Claude validation mismatches (fail-closed), pre-send leakage blocks, and external API errors. A planted synthetic doc triggers a live validation-failure beat for demos. Audit scripts: `server/scripts/trigger-sentry-validation.mjs`, `audit-sentry-payload.mjs`.
+
+### Arize AX (observability)
+
+**Cloud export:** `OBSERVABILITY_TARGET=ax` or `npm run launch -- --cloud` → OTLP traces to Arize AX (`server/src/lib/observability/ax.ts`). Requires `ARIZE_SPACE_ID` + `ARIZE_API_KEY`.
+
+**What gets traced:**
+
+- **Auto-instrumented Claude calls** — `@arizeai/openinference-instrumentation-anthropic` wraps the Anthropic SDK (translate, voice, related docs).
+- **Custom `redaction-check` spans** — recall, doc ID, session ID, run ID, detector type (`server/src/lib/score-redaction.ts`). Metrics only; no raw PII in span attributes.
+
+**Local dev alternative:** **Phoenix** (same OpenInference stack, `@arizeai/phoenix-otel`) runs in Docker via `docker-compose.phoenix.yml` — default when launching without `--cloud`. Traces land at `http://localhost:6006`. Phoenix is not a separate integration; it is the local export target for the same OTEL pipeline.
+
+Filter either UI by span name **`redaction-check`** or attribute **`redaction.run_id`**.
+
+### Deepgram (voice)
+
+**STT:** Nova-3 live transcription in the document target language. Browser uses a short-lived grant from `POST /api/deepgram-token` when the API key allows it; otherwise audio is proxied through `POST /api/voice/transcribe` so the raw key never reaches the client (`server/src/lib/deepgram.ts`, `client/src/lib/voice.ts`).
+
+**TTS:** Aura-2 speaks **tokenized explanation text only** (explanation section extracted server-side; PII safety assert before synthesis). Endpoints: `POST /api/voice/speak` and TTS text returned from voice Q&A.
+
+Mic disclaimer in UI: users should type ID numbers rather than speak them — STT redaction has known gaps (`client/scripts/verify-voice-redaction.mjs`).
+
+---
+
 ## What Passage does
 
 **Input:** Paste text, upload a **`.txt`** file (stays in-browser), or upload **`.pdf` / image** (server-side text extraction with an explicit privacy acknowledgment). Synthetic demo documents are available for testing.
 
-**Output:** Plain-language translation + explanation in 10 languages (Spanish, French, Chinese, Vietnamese, Korean, Portuguese, Arabic, Hindi, Tagalog, Ukrainian). Voice follow-up questions; optional listen-back via TTS — all tokenized. **Related documents** tab lists commonly associated immigration document types for the detected process (Claude, redacted input only, in your chosen language).
+**Output:** Plain-language translation + explanation in **11 languages** (English, Spanish, French, Chinese, Vietnamese, Korean, Portuguese, Arabic, Hindi, Tagalog, Ukrainian). Voice follow-up questions; optional listen-back via TTS — all tokenized. **Related documents** tab lists commonly associated immigration document types for the detected process (Claude, redacted input only, in your chosen language).
 
-**UI language:** Choose translation language on the **landing screen** before pasting. Site chrome, redaction review, tab labels, voice buttons, and TTS fallback warnings all follow that choice (11 locale packs under `client/src/i18n/`).
+**UI language:** Choose translation language on the **landing screen** before pasting. Site chrome, redaction review, tab labels, voice buttons, and TTS fallback warnings all follow that choice (11 locale packs under `client/src/i18n/`). Your choice is saved in `localStorage` so the connection-lost screen stays in the same language.
 
 **Scope line:** Explains what a section is *asking for*. Does **not** tell anyone what to write in response.
 
@@ -200,8 +259,9 @@ flowchart TB
 ## Features built
 
 ### Detection & redaction
-- 7 hand-labeled synthetic docs + 2 planted demo docs (Sentry validation failure, pre-send leakage block)
+- 9 synthetic docs (7 hand-labeled + 2 planted: Sentry validation failure, pre-send leakage block)
 - Privacy tab: per-type counts, span confidence, amber token highlights, expandable Claude payload
+- Optional manual redact (Privacy tab or full-screen edit) with **match-all** for repeated strings
 - Per-doc recall score → observability backend
 
 ### Translation
@@ -228,7 +288,7 @@ flowchart TB
 
 | | Supported |
 |---|---|
-| **STT (speech input)** | All 10 translation languages — mic uses the language you selected for translation (e.g. Chinese → `zh-CN`) |
+| **STT (speech input)** | All 11 languages — mic uses the language you selected for translation (e.g. Chinese → `zh-CN`) |
 | **TTS (read-back)** | **Native Aura-2 voice:** Spanish, French, Portuguese (plus de/it/ja/nl voice IDs when those languages are added to the picker) |
 | **TTS fallback** | **English voice reads target-language text:** Chinese, Vietnamese, Korean, Arabic, Hindi, Tagalog, Ukrainian |
 
@@ -243,6 +303,10 @@ Deepgram Nova-3 transcribes all offered languages. Aura-2 TTS does not yet ship 
 ### Error monitoring (Sentry)
 - Validation mismatches, leakage blocks, Claude/Deepgram/voice failures
 - Planted demo doc for live dashboard beat
+
+### Resilience
+- Server health ping every 5s; **connection-lost** screen (localized, retry only — no start-over while disconnected)
+- Launcher heartbeat stops server/client when the browser tab closes
 
 ---
 
@@ -260,12 +324,12 @@ npm run test:phase6      # Deepgram voice + TTS safety
 npm run test:explanation-text
 
 cd ../client
-npm run verify:all                    # validation, regex, redact, voice-redaction, explanation-tts
+npm run verify:all                    # validation, regex, redact, voice, TTS, upload, i18n, names
 npm run verify:demo-network           # Playwright — token-only API payloads (needs dev server)
 npm run verify:detection              # Playwright — ?detection-test harness
 npm run verify:tokenized-ui           # Playwright — no reinsertion in UI
 npm run verify:sentry-browser         # Playwright — fail-closed validation beat
-node scripts/verify-ui-locale-default.mjs   # i18n: landing picker + locale follows langCode
+node scripts/verify-connection-lost.mjs     # Playwright — connection-lost UI (client only, no server)
 
 npm run score:redaction -- run-before-fix
 npm run score:redaction -- run-after-fix   # from server/ — compare trend in observability UI
@@ -297,12 +361,14 @@ See [`09-demo-script.md`](09-demo-script.md) for the timed 5-minute rehearsal (t
 launch.mjs / Launch Passage.app     — one-click launcher with observability picker + auto-shutdown
 scripts/fix-launch-app.sh           — macOS Gatekeeper fix (sign + remove quarantine)
 /client
-  src/i18n/                         — UI strings (11 locales), workflow + voice/TTS packs
+  src/i18n/                         — UI strings (11 locales), locale persistence
   src/ui/                           — landing scroll, language picker, redaction, results tabs
   src/hooks/usePassageFlow.ts       — phase state machine + related-docs prefetch
-  src/styles/passage-v2.css         — design system from passage V2 Draft.html
+  src/styles/passage-v2.css         — design system (passage V2 Draft.html)
+  src/styles/passage-app.css        — workflow, landing, voice, tabs
 /server
   src/lib/related-documents.ts      — Claude → process + associated doc types (localized)
+  src/lib/document-extract.ts       — PDF text layer + image OCR for uploads
   src/lib/observability/            — Phoenix + Arize AX dual export
   src/lib/agent-memory.ts           — Redis Agent Memory REST client
   src/lib/lang-cache.ts             — Redis LangCache REST client
@@ -316,6 +382,9 @@ PROJECT_ARCHITECTURE.md             — full file reference + technical assessme
 
 ```
 GET  /api/health                    — startup probe (used by launcher)
+POST /api/launcher/heartbeat        — browser tab alive (launcher auto-shutdown)
+GET  /api/launcher/session          — last heartbeat timestamp
+POST /api/launcher/goodbye          — explicit tab close
 POST /api/redaction-session-token   scoped Upstash credentials (no PII)
 POST /api/translate                 redacted text → translated tokens
 POST /api/score-redaction           recall metrics → observability span
