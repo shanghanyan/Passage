@@ -1,13 +1,11 @@
-# Passage UI layer
+# UI components
 
-Visual shell follows class names and layout from `passage V2 Draft.html` at the repo root.
+Phased workflow shell:
 
-**When the draft changes:** re-extract styles with:
+- `PassageApp.tsx` — nav + phase strip (paste → privacy → translate → results)
+- `InputPhase.tsx` — paste step + sample docs
+- `PrivacyTab.tsx` — scrubbed preview + send gate
+- `AnalysisView.tsx` — post-translate tabs (Translation / Privacy / Voice / …)
+- `VoiceTab.tsx`, `TranslationTab.tsx`, `ExplanationTts.tsx`
 
-```bash
-sed -n '/^<style>/,/^<\/style>/p' "passage V2 Draft.html" | sed '1d;$d' > client/src/styles/passage-v2.css
-```
-
-Then update presentational components under `ui/` — business logic lives in `hooks/usePassageFlow.ts` and `lib/`, not in the draft markup.
-
-App-specific overrides live in `client/src/styles/passage-app.css`.
+Shared helpers: `helpers.tsx`, `LoadingState.tsx`

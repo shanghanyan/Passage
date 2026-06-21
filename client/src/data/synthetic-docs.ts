@@ -181,17 +181,13 @@ Name: David Kim
 A-99887766
 SSN: 333-44-5555
 
-We could not verify your residence at Oakwood Commons Unit 4B, 8800 Research Blvd, Austin TX 78758.
-Please submit utility bills for this location.`,
+Please send documents to Apt #4B, Brooklyn, NY 11201. We could not verify your residence at this location.
+Please submit utility bills within 30 days.`,
     labeledSpans: [
       { type: "NAME", value: "David Kim" },
       { type: "A_NUMBER", value: "A-99887766" },
       { type: "SSN", value: "333-44-5555" },
-      { type: "ADDRESS", value: "Oakwood Commons Unit 4B, 8800 Research Blvd" },
+      { type: "ADDRESS", value: "Apt #4B, Brooklyn, NY 11201" },
     ],
   },
 ];
-
-export function getSyntheticDoc(id: string): SyntheticDoc | undefined {
-  return SYNTHETIC_DOCS.find((doc) => doc.id === id);
-}

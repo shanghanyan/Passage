@@ -220,7 +220,7 @@
     "id": "planted-detection-failure",
     "title": "⚠️ Planted — missed address (leakage block)",
     "plantedDetectionFailure": true,
-    "text": "Address Verification Request\n\nName: David Kim\nA-99887766\nSSN: 333-44-5555\n\nWe could not verify your residence at Oakwood Commons Unit 4B, 8800 Research Blvd, Austin TX 78758.\nPlease submit utility bills for this location.",
+    "text": "Address Verification Request\n\nName: David Kim\nA-99887766\nSSN: 333-44-5555\n\nPlease send documents to Apt #4B, Brooklyn, NY 11201. We could not verify your residence at this location.\nPlease submit utility bills within 30 days.",
     "labeledSpans": [
       {
         "type": "NAME",
@@ -236,7 +236,7 @@
       },
       {
         "type": "ADDRESS",
-        "value": "Oakwood Commons Unit 4B, 8800 Research Blvd"
+        "value": "Apt #4B, Brooklyn, NY 11201"
       }
     ]
   }

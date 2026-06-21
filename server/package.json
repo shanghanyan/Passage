@@ -10,7 +10,10 @@
     "test:phases": "tsx scripts/test-phases.ts",
     "test:phase5": "tsx scripts/test-phase5.ts",
     "test:phase6": "tsx scripts/test-phase6.ts",
-    "score:redaction": "tsx scripts/score-redaction-set.ts"
+    "test:explanation-text": "tsx scripts/test-explanation-text.ts",
+    "score:redaction": "tsx scripts/score-redaction-set.ts",
+    "trigger:sentry-validation": "tsx scripts/trigger-sentry-validation.mjs",
+    "audit:sentry-payload": "node scripts/audit-sentry-payload.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

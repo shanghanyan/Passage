@@ -1,3 +1,7 @@
+import { extractExplanationText, ttsVoiceForLanguage } from "./explanation-text.js";
+
+export { extractExplanationText, ttsVoiceForLanguage };
+
 export async function mintDeepgramClientToken(): Promise<
   { mode: "client"; token: string; expiresIn: number } | { mode: "server-proxy"; message: string }
 > {
@@ -31,12 +35,17 @@ export async function mintDeepgramClientToken(): Promise<
   throw new Error(`Deepgram grant failed (${res.status}): ${detail}`);
 }
 
-export async function transcribeAudio(buffer: ArrayBuffer, mimeType: string): Promise<string> {
+export async function transcribeAudio(
+  buffer: ArrayBuffer,
+  mimeType: string,
+  language = "en-US",
+): Promise<string> {
   const apiKey = process.env.DEEPGRAM_API_KEY;
   if (!apiKey) throw new Error("DEEPGRAM_API_KEY is not set");
 
+  const lang = encodeURIComponent(language.trim() || "en-US");
   const res = await fetch(
-    "https://api.deepgram.com/v1/listen?model=nova-3&language=multi&smart_format=true",
+    `https://api.deepgram.com/v1/listen?model=nova-3&language=${lang}&smart_format=true&punctuate=true`,
     {
       method: "POST",
       headers: {
@@ -70,13 +79,14 @@ export function assertTtsTextSafe(text: string): void {
   }
 }
 
-export async function synthesizeSpeech(text: string): Promise<ArrayBuffer> {
+export async function synthesizeSpeech(text: string, targetLanguage = "English"): Promise<ArrayBuffer> {
   const apiKey = process.env.DEEPGRAM_API_KEY;
   if (!apiKey) throw new Error("DEEPGRAM_API_KEY is not set");
 
   assertTtsTextSafe(text);
 
-  const res = await fetch("https://api.deepgram.com/v1/speak?model=aura-asteria-en&encoding=mp3", {
+  const model = ttsVoiceForLanguage(targetLanguage);
+  const res = await fetch(`https://api.deepgram.com/v1/speak?model=${encodeURIComponent(model)}&encoding=mp3`, {
     method: "POST",
     headers: {
       Authorization: `Token ${apiKey}`,

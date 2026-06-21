@@ -4,7 +4,6 @@
  */
 import "dotenv/config";
 import { validateTokenPreservation, translateRedactedText } from "../src/lib/claude.js";
-import { getUpstashRestConfig, sessionRedisKey, SESSION_TTL_SECONDS } from "../src/lib/redis.js";
 import { initSentry, captureValidationMismatch } from "../src/lib/sentry.js";
 
 const TOKEN = /⟦PII:[A-Z_]+:\d+⟧/g;
@@ -25,64 +24,6 @@ function redact(text: string, spans: Array<{ type: string; start: number; end: n
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message);
-}
-
-async function testRedactionSessionToken() {
-  const res = await fetch("http://localhost:3001/api/redaction-session-token", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: "test-session-" + Date.now() }),
-  });
-  assert(res.ok, "redaction-session-token should succeed");
-  const body = await res.json();
-  assert(typeof body.restUrl === "string", "restUrl present");
-  assert(typeof body.restToken === "string", "restToken present");
-  assert(body.redisKey.startsWith("session:"), "redisKey scoped");
-  assert(body.ttlSeconds === 900, "TTL 900");
-  console.log("✓ Phase 2: redaction-session-token mints scoped credentials (no PII in body)");
-  return body as { restUrl: string; restToken: string; redisKey: string; ttlSeconds: number };
-}
-
-async function testRedisWrite(creds: {
-  restUrl: string;
-  restToken: string;
-  redisKey: string;
-  ttlSeconds: number;
-}) {
-  const tokenMap = {
-    "⟦PII:NAME:1⟧": "Maria Gonzalez",
-    "⟦PII:A_NUMBER:1⟧": "A123456789",
-  };
-  const entries = Object.entries(tokenMap).flat();
-  const pipeline = [
-    ["HSET", creds.redisKey, ...entries],
-    ["EXPIRE", creds.redisKey, creds.ttlSeconds],
-  ];
-
-  const writeRes = await fetch(`${creds.restUrl}/pipeline`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${creds.restToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(pipeline),
-  });
-  assert(writeRes.ok, `Redis write failed: ${await writeRes.text()}`);
-
-  const readRes = await fetch(`${creds.restUrl}/hgetall/${encodeURIComponent(creds.redisKey)}`, {
-    headers: { Authorization: `Bearer ${creds.restToken}` },
-  });
-  const readBody = (await readRes.json()) as { result?: Record<string, string> | string[] };
-  const raw = readBody.result;
-  let nameValue: string | undefined;
-  if (Array.isArray(raw)) {
-    const idx = raw.indexOf("⟦PII:NAME:1⟧");
-    nameValue = idx >= 0 ? raw[idx + 1] : undefined;
-  } else {
-    nameValue = raw?.["⟦PII:NAME:1⟧"];
-  }
-  assert(nameValue === "Maria Gonzalez", "Redis readback ok");
-  console.log("✓ Phase 2: token map written/read via Upstash REST (direct, not backend)");
 }
 
 async function testTranslateRoundTrip() {
@@ -150,18 +91,13 @@ function testRegexPatterns() {
 async function main() {
   testRegexPatterns();
 
-  // Ensure Upstash config loads
-  getUpstashRestConfig();
-  sessionRedisKey("smoke");
-
-  const creds = await testRedactionSessionToken();
-  await testRedisWrite(creds);
   await testTranslateRoundTrip();
   await testTranslateSecondLanguage();
   await testValidationFailure();
   await testPlantedFailureEndpoint();
 
   console.log("\nAll phase 0–4 automated checks passed.");
+  console.log("(Token maps stay in browser memory only — no Upstash persistence test.)");
 }
 
 main().catch((err) => {

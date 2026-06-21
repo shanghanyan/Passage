@@ -6,11 +6,19 @@ export interface DetectedSpan {
   end: number;
   value: string;
   confidence?: number;
+  source?: "regex" | "ner";
+}
+
+export interface TokenMeta {
+  type: PiiType;
+  confidence?: number;
+  source?: "regex" | "ner";
 }
 
 export interface RedactionResult {
   redacted: string;
   tokenMap: Record<string, string>;
+  tokenMeta: Record<string, TokenMeta>;
 }
 
 export interface TranslateSuccess {
@@ -26,6 +34,18 @@ export interface TranslateFailure {
 
 export type TranslateResponse = TranslateSuccess | TranslateFailure;
 
+export interface TokenCheckResult {
+  ok: boolean;
+  reason?: string;
+  unexpected?: string[];
+  missing?: string[];
+}
+
+export interface LeakCheckResult {
+  ok: boolean;
+  reason?: string;
+}
+
 export interface ValidationSuccess {
   ok: true;
   text: string;
@@ -34,6 +54,14 @@ export interface ValidationSuccess {
 export interface ValidationFailure {
   ok: false;
   fallback: string;
+  tokenCheck: TokenCheckResult;
+  leakCheck: LeakCheckResult;
 }
 
 export type ValidationResult = ValidationSuccess | ValidationFailure;
+
+export interface ValidationFailureDetails {
+  tokenCheck: TokenCheckResult;
+  leakCheck: LeakCheckResult;
+  traceId?: string;
+}

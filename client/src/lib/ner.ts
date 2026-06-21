@@ -38,6 +38,7 @@ export async function detectNerSpans(text: string): Promise<DetectedSpan[]> {
       end: entity.end,
       value: text.slice(entity.start, entity.end),
       confidence: entity.score,
+      source: "ner",
     });
   }
 

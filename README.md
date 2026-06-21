@@ -28,12 +28,15 @@ cp client/.env.local.example client/.env.local   # optional — browser Sentry
 | Variable | Purpose |
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude translation + voice Q&A |
-| `UPSTASH_REDIS_REST_URL` | Ephemeral token-map storage |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash REST credentials |
 | `SENTRY_DSN` | Server error monitoring |
 | `DEEPGRAM_API_KEY` | Voice transcription + TTS |
 
-For **Arize AX Cloud** traces, also set `ARIZE_SPACE_ID` and `ARIZE_API_KEY` ([app.arize.com](https://app.arize.com) → Settings).
+**Optional:**
+
+| Variable | Purpose |
+|---|---|
+| `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | Legacy endpoint only — token maps are **not** persisted |
+| `ARIZE_SPACE_ID` + `ARIZE_API_KEY` | Arize AX Cloud traces |
 
 4. **macOS only — allow double-click launch** (once):
 
@@ -70,7 +73,7 @@ npm run launch -- --cloud
 
 ## Configure secrets (reference)
 
-The server refuses to start without working Redis and Claude credentials. See [First-time setup](#first-time-setup) for the required variables.
+The server refuses to start without working Claude credentials. See [First-time setup](#first-time-setup) for the required variables.
 
 ### Observability — pick one at launch
 
@@ -96,20 +99,9 @@ Both modes use the same OpenTelemetry + OpenInference stack — Claude traces an
 
 **Launcher vs `.env`:** `Launch Passage.app` / `launch.mjs` asks which backend to use (macOS dialog) or accepts `--local` / `--cloud`. That choice is passed to the server for that session and **overrides** `OBSERVABILITY_TARGET` in `.env`. For `npm run dev` without the launcher, `.env` controls the target.
 
-### Redis Agent (optional — voice memory + FAQ cache)
+### Redis Agent (disabled — no server persistence)
 
-Create both services at [cloud.redis.io](https://cloud.redis.io) (free tier):
-
-| Variable | Service | Purpose |
-|---|---|---|
-| `AGENT_MEMORY_URL` | Agent Memory → Configuration → Endpoint | Multi-turn voice Q&A history |
-| `AGENT_MEMORY_STORE_ID` | Agent Memory → General settings | Store ID |
-| `AGENT_MEMORY_API_KEY` | Agent Memory → API Keys | Bearer token (shown once at creation) |
-| `LANGCACHE_URL` | LangCache → Configuration → Host | Semantic cache for repeated voice questions |
-| `LANGCACHE_CACHE_ID` | LangCache → service name (e.g. `cache-XXXX`) | Cache ID |
-| `LANGCACHE_API_KEY` | LangCache → API Keys | Bearer token |
-
-If unset, voice still works — just without conversation memory or cache hits.
+Agent Memory and LangCache are **not used** — voice Q&A does not save turns or cache answers. Code remains in `server/src/lib/` for reference only.
 
 ### Client (`client/.env.local`)
 
@@ -125,39 +117,24 @@ If unset, voice still works — just without conversation memory or cache hits.
 flowchart TB
   subgraph browser [Browser]
     Detect[Detect + Redact]
+    TokenMap["tokenMap in memory only"]
     Send[Send for Translation]
   end
 
-  subgraph upstash [Upstash Redis]
-    Tokens["session:id:tokens · TTL 15m"]
-  end
-
-  subgraph redisCloud [Redis Cloud optional]
-    AM[Agent Memory · PII-free Q&A turns]
-    LC[LangCache · FAQ by redacted fingerprint]
-  end
-
   subgraph server [Passage Server]
-    Mint["/api/redaction-session-token"]
+    Translate["/api/translate"]
     VQ["/api/voice/question"]
     OTEL["OTEL → Phoenix or Arize AX"]
   end
 
-  Detect --> Send
-  Send --> Mint
-  Mint --> Tokens
-  Send --> Tokens
-  VQ --> AM
-  VQ --> LC
-  VQ --> Claude[Claude API]
+  Detect --> TokenMap
+  Send --> Translate
+  Translate --> Claude[Claude API]
+  VQ --> Claude
   server --> OTEL
 ```
 
-**Three Redis roles, all separate:**
-
-1. **Upstash** — ephemeral token maps (privacy-critical; browser writes directly)
-2. **Agent Memory** — voice conversation history (PII-free text only)
-3. **LangCache** — semantic cache for paraphrased voice questions on the same redacted doc
+**Privacy rule:** After redaction, text stays tokenized through translation, voice Q&A, TTS read-back, and on-screen display. Raw PII is never written to Redis, Agent Memory, LangCache, or any server store.
 
 ---
 
@@ -165,7 +142,7 @@ flowchart TB
 
 **Input:** Paste text from an RFE, biometrics notice, EAD receipt, NTA, or similar. Text only — no file upload.
 
-**Output:** Plain-language translation + explanation in 10 languages (Spanish, French, Chinese, Vietnamese, Korean, Portuguese, Arabic, Hindi, Tagalog, Ukrainian). Voice follow-up questions with optional multi-turn memory, read back via TTS.
+**Output:** Plain-language translation + explanation in 10 languages (Spanish, French, Chinese, Vietnamese, Korean, Portuguese, Arabic, Hindi, Tagalog, Ukrainian). Voice follow-up questions, read back via TTS — all tokenized.
 
 **Scope line:** Explains what a section is *asking for*. Does **not** tell anyone what to write in response.
 
@@ -176,15 +153,15 @@ flowchart TB
 | Layer | What it does |
 |---|---|
 | **In-browser detection** | Hand-written regex + `Xenova/bert-base-NER` via Transformers.js — zero network calls after first model load |
-| **Explicit send gate** | Nothing hits the network until **Send for translation** — not even Redis |
+| **Explicit send gate** | Nothing hits the network until **Send for translation** |
 | **Token format** | `⟦PII:TYPE:n⟧` — placeholders only in Claude payloads |
-| **Backend never sees PII** | Server mints scoped Upstash credentials; browser writes token map directly to Redis REST |
-| **Ephemeral sessions** | Token maps TTL **15 minutes** |
+| **No server persistence** | Token maps stay in browser memory only — not saved to Upstash or any backend |
+| **Tokenized display** | Translation and voice answers show tokens, not reinserted raw values |
 | **Pre-send leakage scan** | Blocks translate if raw PII survived redaction — Sentry alert |
-| **Post-Claude validation** | Token check fails closed; no partial render |
-| **Local reinsertion** | Real values only in final browser DOM |
-| **Voice + Redis Agent safety** | Agent Memory and LangCache store **PII-free text only**; server guards block SSN/A-number patterns before store or TTS |
-| **Sentry scrubbing** | A-numbers and SSNs stripped from events on client and server |
+| **Post-Claude validation** | Token check + raw-leak scan fails closed; no partial render |
+| **Explanation-only TTS** | Deepgram speaks tokenized explanation text only |
+| **Voice question redaction** | STT transcript redacted in browser before Claude |
+| **Sentry scrubbing** | A-numbers, SSNs, DOB, passport, and address patterns scrubbed from events |
 
 ---
 
@@ -197,15 +174,25 @@ flowchart TB
 
 ### Translation
 - Claude Sonnet 4.6 — preserve tokens, explain sections, no legal advice
-- Side-by-side original + translated with local reinsertion
+- Side-by-side redacted source + tokenized translation (no reinsertion)
 - Fail-closed blocked state
 
 ### Voice
-- Deepgram Nova-3 STT (client token or server-proxy — key never in browser)
-- Multi-turn Q&A via **Redis Agent Memory** when configured
-- **LangCache** instant answers for repeated FAQ on same doc
-- Deepgram TTS on PII-free text with visible preview
+- Deepgram Nova-3 STT in the **document target language** (client token or server-proxy — key never in browser)
+- Client-side **voice question redaction** before Claude (`prepareVoiceQuestion`)
+- Voice answers validated fail-closed; display and TTS stay tokenized
+- Explanation-only TTS read-back on Translation and Voice tabs (play/pause)
 - Mic disclaimer: *"Please type any ID numbers — don't say them out loud"*
+
+#### Voice language support (STT vs TTS)
+
+| | Supported |
+|---|---|
+| **STT (speech input)** | All 10 translation languages — mic uses the language you selected for translation (e.g. Chinese → `zh-CN`) |
+| **TTS (read-back)** | **Native Aura-2 voice:** Spanish, French, Portuguese (plus de/it/ja/nl voice IDs when those languages are added to the picker) |
+| **TTS fallback** | **English voice reads target-language text:** Chinese, Vietnamese, Korean, Arabic, Hindi, Tagalog, Ukrainian |
+
+Deepgram Nova-3 transcribes all offered languages. Aura-2 TTS does not yet ship native voices for every language we translate into — for the fallback languages above, listen-back still works but uses an English voice model on tokenized explanation text (no raw PII). Translation and voice **answers** are still in the target language; only the TTS accent is English until Deepgram adds those voices.
 
 ### Observability (Phoenix + Arize AX)
 - Dual-target export — choose at launch
@@ -230,14 +217,36 @@ cd server
 npm run test:phases      # redaction, Redis, Claude, validation + Sentry
 npm run test:phase5      # observability + recall scoring
 npm run test:phase6      # Deepgram voice + TTS safety
+npm run test:explanation-text
+
+cd ../client
+npm run verify:all                    # validation, regex, redact, voice-redaction, explanation-tts
+npm run verify:demo-network           # Playwright — token-only API payloads (needs dev server)
+npm run verify:detection              # Playwright — ?detection-test harness
+npm run verify:tokenized-ui           # Playwright — no reinsertion in UI
+npm run verify:sentry-browser         # Playwright — fail-closed validation beat
 
 npm run score:redaction -- run-before-fix
-npm run score:redaction -- run-after-fix   # second run — compare trend in observability UI
+npm run score:redaction -- run-after-fix   # from server/ — compare trend in observability UI
 ```
 
 Filter observability UI by span name **`redaction-check`** or attribute **`redaction.run_id`**.
 
 Failures logged in [`08-error-log.md`](08-error-log.md).
+
+---
+
+## Vanisha merge note
+
+Ported from teammate fork: priority-based span merge, audit cases, `DetectionTest` dev harness (`?detection-test`), verification scripts (validation, regex, redact, demo-network, tokenized-ui, planted-block, sentry-browser), demo script (`09-demo-script.md`), and Sentry payload audit. Core privacy change: **no Redis token persistence, no reinsertion** — redacted throughout.
+
+Dev harness: `http://localhost:5173/?detection-test`
+
+---
+
+## Demo script
+
+See [`09-demo-script.md`](09-demo-script.md) for the timed 5-minute rehearsal (two distinct failure beats: detection gap vs validation mismatch).
 
 ---
 
@@ -247,7 +256,7 @@ Failures logged in [`08-error-log.md`](08-error-log.md).
 launch.mjs / Launch Passage.app     — one-click launcher with observability picker + Stop panel
 scripts/fix-launch-app.sh           — macOS Gatekeeper fix (sign + remove quarantine)
 /client
-  src/ui/                           — V2 draft shell (LandingPage, UploadToolSection, workspace tabs)
+  src/ui/                           — workflow shell (paste → privacy review → results tabs)
   src/styles/passage-v2.css         — extracted from passage V2 Draft.html
 /server
   src/lib/observability/            — Phoenix + Arize AX dual export

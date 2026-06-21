@@ -73,7 +73,10 @@ async function testVoiceSpeakEndpoint() {
   const res = await fetch("http://localhost:3001/api/voice/speak", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: "This is a test of the text to speech system." }),
+    body: JSON.stringify({
+      text: "Esta es una prueba del sistema de texto a voz.",
+      target_language: "Spanish",
+    }),
   });
   if (!res.ok) {
     const errText = await res.text();

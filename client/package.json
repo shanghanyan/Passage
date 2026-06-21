@@ -6,10 +6,21 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "verify:regex": "tsx scripts/verify-regex-node.mjs",
+    "verify:redact": "tsx scripts/verify-redact.mjs",
+    "verify:validation": "tsx scripts/verify-validation.mjs",
+    "verify:detection": "tsx scripts/verify-detection.mjs",
+    "verify:demo-network": "tsx scripts/verify-demo-network.mjs",
+    "verify:tokenized-ui": "tsx scripts/verify-tokenized-ui.mjs",
+    "verify:planted-block": "tsx scripts/capture-planted-translate-payload.mjs",
+    "verify:sentry-browser": "tsx scripts/trigger-sentry-browser.mjs",
+    "verify:explanation-tts": "tsx scripts/verify-explanation-tts.mjs",
+    "verify:voice-redaction": "tsx scripts/verify-voice-redaction.mjs",
+    "verify:all": "npm run verify:validation && npm run verify:regex && npm run verify:redact && npm run verify:voice-redaction && npm run verify:explanation-tts"
   },
   "dependencies": {
-    "@deepgram/sdk": "^4.11.3",
+    "@deepgram/sdk": "^5.4.0",
     "@huggingface/transformers": "^4.2.0",
     "@sentry/react": "^10.59.0",
     "react": "^19.0.0",
@@ -19,6 +30,8 @@
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
+    "playwright": "^1.61.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vite": "^6.0.7"
   }

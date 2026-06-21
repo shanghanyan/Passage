@@ -102,17 +102,26 @@ export function validateTokenPreservation(
   redactedInput: string,
   claudeOutput: string,
   _sessionId: string,
-): { ok: true } | { ok: false; expected: number; found: number } {
+): { ok: true } | { ok: false; expected: number; found: number; unexpected?: string[]; missing?: string[] } {
   const inputTokens = uniqueTokens(redactedInput);
+  const inputSet = new Set(inputTokens);
   const outputTokens = claudeOutput.match(TOKEN_PATTERN) ?? [];
+  const foundKeys = [...new Set(outputTokens)];
 
-  for (const token of inputTokens) {
-    if (!claudeOutput.includes(token)) {
-      return { ok: false, expected: inputTokens.length, found: outputTokens.length };
-    }
+  const unexpected = foundKeys.filter((k) => !inputSet.has(k));
+  const missing = inputTokens.filter((k) => !claudeOutput.includes(k));
+
+  if (unexpected.length === 0 && missing.length === 0) {
+    return { ok: true };
   }
 
-  return { ok: true };
+  return {
+    ok: false,
+    expected: inputTokens.length,
+    found: foundKeys.length,
+    unexpected,
+    missing,
+  };
 }
 
 /** Deterministic demo failure — strips every occurrence of the last input token. */

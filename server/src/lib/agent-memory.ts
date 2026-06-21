@@ -45,15 +45,25 @@ function eventText(content: unknown): string {
     .trim();
 }
 
-/** Block storing raw PII patterns in agent memory. */
+/** Block storing raw PII or non-tokenized confidential patterns in agent memory. */
 export function assertMemoryTextSafe(text: string): void {
   const patterns = [
     /\bA-?\d{7,9}\b/i,
     /\b\d{3}-\d{2}-\d{4}\b/,
     /\b(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\/(19|20)\d{2}\b/,
+    /\bPassport\s*(?:No\.?|#)?\s*[A-Z0-9]{6,12}\b/i,
   ];
   for (const p of patterns) {
     if (p.test(text)) throw new Error("Agent memory blocked: raw PII pattern in content");
+  }
+}
+
+/** Only redacted/tokenized turns may be persisted — never raw STT or reinserted text. */
+export function assertMemoryExchangeSafe(userText: string, assistantText: string): void {
+  assertMemoryTextSafe(userText);
+  assertMemoryTextSafe(assistantText);
+  if (/\b\d{1,5}\s+[A-Za-z0-9.\s-]{8,}(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Terrace|Court|Ct)\b/i.test(userText)) {
+    throw new Error("Agent memory blocked: possible raw address in user turn");
   }
 }
 
@@ -118,9 +128,10 @@ export async function appendVoiceSessionTurn(
 
 export async function saveVoiceExchange(
   sessionId: string,
-  userText: string,
-  assistantText: string,
+  redactedUserText: string,
+  tokenizedAssistantText: string,
 ): Promise<void> {
-  await appendVoiceSessionTurn(sessionId, "USER", userText);
-  await appendVoiceSessionTurn(sessionId, "ASSISTANT", assistantText);
+  assertMemoryExchangeSafe(redactedUserText, tokenizedAssistantText);
+  await appendVoiceSessionTurn(sessionId, "USER", redactedUserText);
+  await appendVoiceSessionTurn(sessionId, "ASSISTANT", tokenizedAssistantText);
 }

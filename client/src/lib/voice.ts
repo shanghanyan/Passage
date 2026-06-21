@@ -1,9 +1,13 @@
-import { createClient, LiveTranscriptionEvents } from "@deepgram/sdk";
+import { DeepgramClient } from "@deepgram/sdk";
 import { formatError } from "./errors";
 
 export type DeepgramAuth =
   | { mode: "client"; token: string; expiresIn: number }
   | { mode: "server-proxy"; message: string };
+
+export type SttStatus = "connecting" | "listening" | "idle" | "error";
+
+const STT_MODEL = "nova-3";
 
 function wrapFetchError(err: unknown, context: string): Error {
   if (err instanceof TypeError && /fetch|network|load failed/i.test(err.message)) {
@@ -72,12 +76,12 @@ export async function askVoiceQuestion(params: {
   }
 }
 
-export async function fetchSpeakAudio(text: string): Promise<ArrayBuffer> {
+export async function fetchSpeakAudio(text: string, targetLanguage: string): Promise<ArrayBuffer> {
   try {
     const res = await fetch("/api/voice/speak", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, target_language: targetLanguage }),
     });
     if (!res.ok) throw await readApiError(res, "Text-to-speech");
     return res.arrayBuffer();
@@ -86,11 +90,14 @@ export async function fetchSpeakAudio(text: string): Promise<ArrayBuffer> {
   }
 }
 
-async function transcribeViaServer(blob: Blob): Promise<string> {
+async function transcribeViaServer(blob: Blob, sttLanguage: string): Promise<string> {
   try {
     const res = await fetch("/api/voice/transcribe", {
       method: "POST",
-      headers: { "Content-Type": blob.type || "audio/webm" },
+      headers: {
+        "Content-Type": blob.type || "audio/webm",
+        "X-Stt-Language": sttLanguage,
+      },
       body: blob,
     });
     if (!res.ok) throw await readApiError(res, "Transcription");
@@ -103,43 +110,98 @@ async function transcribeViaServer(blob: Blob): Promise<string> {
 
 async function startLiveWithToken(
   token: string,
+  sttLanguage: string,
   onTranscript: (text: string, isFinal: boolean) => void,
   onError: (err: Error) => void,
-): Promise<() => void> {
-  const deepgram = createClient(token);
-  const connection = deepgram.listen.live({
-    model: "nova-3",
-    language: "multi",
-    smart_format: true,
+  onStatus?: (status: SttStatus, detail?: string) => void,
+): Promise<() => Promise<void>> {
+  onStatus?.("connecting");
+
+  const client = new DeepgramClient({ accessToken: token });
+  const connection = await client.listen.v1.connect({
+    model: STT_MODEL,
+    language: sttLanguage,
+    punctuate: "true",
+    interim_results: "true",
+    smart_format: "true",
+  } as Parameters<typeof client.listen.v1.connect>[0]);
+
+  let stream: MediaStream | null = null;
+  let recorder: MediaRecorder | null = null;
+  let stopped = false;
+
+  const stop = async () => {
+    if (stopped) return;
+    stopped = true;
+
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+    stream?.getTracks().forEach((track) => track.stop());
+
+    try {
+      if (connection.socket?.readyState === WebSocket.OPEN) {
+        connection.socket.send(JSON.stringify({ type: "CloseStream" }));
+        connection.socket.close();
+      }
+    } catch {
+      // socket may already be closed
+    }
+
+    onStatus?.("idle");
+  };
+
+  connection.on("message", (data: unknown) => {
+    const message = data as {
+      type?: string;
+      channel?: { alternatives?: Array<{ transcript?: string }> };
+      is_final?: boolean;
+    };
+    if (message.type !== "Results") return;
+    const transcript = message.channel?.alternatives?.[0]?.transcript ?? "";
+    if (!transcript.trim()) return;
+    onTranscript(transcript, Boolean(message.is_final));
   });
 
-  connection.on(LiveTranscriptionEvents.Error, (err: unknown) => onError(new Error(formatError(err))));
-  connection.on(LiveTranscriptionEvents.Transcript, (data: { channel?: { alternatives?: Array<{ transcript?: string }> }; is_final?: boolean }) => {
-    const transcript = data.channel?.alternatives?.[0]?.transcript ?? "";
-    if (!transcript) return;
-    onTranscript(transcript, data.is_final ?? false);
+  connection.on("error", () => {
+    onStatus?.("error", "Deepgram connection error");
+    onError(new Error("Deepgram connection error"));
+    void stop();
   });
 
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  const recorder = new MediaRecorder(stream);
-  recorder.ondataavailable = (e) => {
-    if (e.data.size > 0) connection.send(e.data);
+  connection.on("close", () => {
+    if (!stopped) onStatus?.("idle");
+  });
+
+  connection.connect();
+  await connection.waitForOpen();
+
+  stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+    ? "audio/webm;codecs=opus"
+    : "audio/webm";
+
+  recorder = new MediaRecorder(stream, { mimeType });
+  recorder.ondataavailable = (event) => {
+    if (event.data.size > 0 && connection.socket?.readyState === WebSocket.OPEN) {
+      connection.socket.send(event.data);
+    }
   };
   recorder.start(250);
 
-  return () => {
-    recorder.stop();
-    stream.getTracks().forEach((t) => t.stop());
-    connection.requestClose();
-  };
+  onStatus?.("listening");
+  return stop;
 }
 
-async function recordAndTranscribe(onError: (err: Error) => void): Promise<{ stop: () => Promise<string> }> {
+async function recordAndTranscribe(
+  sttLanguage: string,
+  onError: (err: Error) => void,
+): Promise<{ stop: () => Promise<string> }> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const chunks: Blob[] = [];
   const recorder = new MediaRecorder(stream);
-  recorder.ondataavailable = (e) => {
-    if (e.data.size > 0) chunks.push(e.data);
+  recorder.ondataavailable = (event) => {
+    if (event.data.size > 0) chunks.push(event.data);
   };
   recorder.start();
 
@@ -147,12 +209,14 @@ async function recordAndTranscribe(onError: (err: Error) => void): Promise<{ sto
     stop: () =>
       new Promise((resolve, reject) => {
         recorder.onstop = () => {
-          stream.getTracks().forEach((t) => t.stop());
+          stream.getTracks().forEach((track) => track.stop());
           const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-          transcribeViaServer(blob).then(resolve).catch((err) => {
-            onError(err instanceof Error ? err : new Error(String(err)));
-            reject(err);
-          });
+          transcribeViaServer(blob, sttLanguage)
+            .then(resolve)
+            .catch((err) => {
+              onError(err instanceof Error ? err : new Error(String(err)));
+              reject(err);
+            });
         };
         recorder.stop();
       }),
@@ -162,18 +226,24 @@ async function recordAndTranscribe(onError: (err: Error) => void): Promise<{ sto
 export async function startLiveTranscription(
   onTranscript: (text: string, isFinal: boolean) => void,
   onError: (err: Error) => void,
+  onStatus?: (status: SttStatus, detail?: string) => void,
+  sttLanguage = "en-US",
 ): Promise<{ stop: () => void | Promise<void>; mode: "client" | "server-proxy" }> {
   const auth = await fetchDeepgramAuth();
 
   if (auth.mode === "client") {
-    const stop = await startLiveWithToken(auth.token, onTranscript, onError);
+    const stop = await startLiveWithToken(auth.token, sttLanguage, onTranscript, onError, onStatus);
     return { stop, mode: "client" };
   }
 
-  const session = await recordAndTranscribe(onError);
+  onStatus?.("connecting");
+  const session = await recordAndTranscribe(sttLanguage, onError);
+  onStatus?.("listening");
+
   return {
     mode: "server-proxy",
     stop: async () => {
+      onStatus?.("idle");
       const text = await session.stop();
       if (text) onTranscript(text, true);
     },

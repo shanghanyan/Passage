@@ -1,132 +1,202 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatError } from "../lib/errors";
-import { askVoiceQuestion, fetchSpeakAudio, startLiveTranscription } from "../lib/voice";
+import { sttLanguageFromCode } from "../lib/languages";
+import { prepareVoiceQuestion } from "../lib/prepare-voice-question";
+import { askVoiceQuestion, startLiveTranscription } from "../lib/voice";
+import { validateTranslationOutput } from "../lib/validate";
 import { Sentry } from "../lib/sentry";
 import type { PassageFlow } from "../hooks/usePassageFlow";
+import { ExplanationTts } from "./ExplanationTts";
+import { renderTokenHighlights } from "./helpers";
 import { LoadingState } from "./LoadingState";
 
 export function VoiceTab({ flow }: { flow: PassageFlow }) {
+  const [connecting, setConnecting] = useState(false);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const [interim, setInterim] = useState("");
+  const [redactedPreview, setRedactedPreview] = useState("");
   const [answer, setAnswer] = useState("");
-  const [ttsPreview, setTtsPreview] = useState("");
+  const [ttsText, setTtsText] = useState("");
   const [voiceMeta, setVoiceMeta] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const stopRef = useRef<(() => void | Promise<void>) | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [autoPlayAnswer, setAutoPlayAnswer] = useState(false);
 
-  const canUseVoice = flow.phase === "done" && flow.redaction && flow.reinsertedText;
+  const canUseVoice = flow.phase === "done" && flow.redaction && flow.translationReady;
+  const sttLanguage = sttLanguageFromCode(flow.langCode);
+  const lang = flow.targetLanguage;
+
+  useEffect(() => {
+    return () => {
+      const result = stopRef.current?.();
+      if (result instanceof Promise) void result;
+      stopRef.current = null;
+    };
+  }, []);
 
   const toggleMic = useCallback(async () => {
-    if (listening) {
+    if (listening || connecting) {
       const result = stopRef.current?.();
       if (result instanceof Promise) await result;
       stopRef.current = null;
       setListening(false);
+      setConnecting(false);
       return;
     }
     if (!canUseVoice) return;
 
     setVoiceError(null);
+    setRedactedPreview("");
+    setAnswer("");
+    setTtsText("");
+    setAutoPlayAnswer(false);
     try {
       const { stop, mode } = await startLiveTranscription(
         (text, isFinal) => {
-          if (isFinal) setTranscript((prev) => (prev ? `${prev} ${text}` : text).trim());
-          else setTranscript(text);
+          if (isFinal) {
+            setTranscript((prev) => (prev ? `${prev} ${text}` : text).trim());
+            setInterim("");
+          } else {
+            setInterim(text);
+          }
         },
         (err) => {
           Sentry.captureException(err instanceof Error ? err : new Error(formatError(err)));
           setVoiceError(formatError(err));
           setListening(false);
+          setConnecting(false);
         },
+        (status) => {
+          if (status === "connecting") {
+            setConnecting(true);
+            setListening(false);
+          } else if (status === "listening") {
+            setConnecting(false);
+            setListening(true);
+          } else if (status === "idle" || status === "error") {
+            setConnecting(false);
+            setListening(false);
+          }
+        },
+        sttLanguage,
       );
       stopRef.current = stop;
-      setListening(true);
       if (mode === "server-proxy") {
-        console.log("[Passage Phase 6] Using server-proxy STT (Deepgram key lacks grant permission)");
+        console.log(`[Passage] STT server-proxy · language=${sttLanguage}`);
       }
     } catch (err) {
       Sentry.captureException(err instanceof Error ? err : new Error(formatError(err)));
       setVoiceError(formatError(err));
+      setConnecting(false);
     }
-  }, [listening, canUseVoice]);
+  }, [listening, connecting, canUseVoice, sttLanguage]);
 
   const submitQuestion = useCallback(async () => {
-    if (!flow.redaction || !transcript.trim() || !canUseVoice) return;
+    const rawQuestion = [transcript, interim].filter(Boolean).join(" ").trim();
+    if (!flow.redaction || !canUseVoice) return;
+    if (!rawQuestion) {
+      setVoiceError("Type or speak a question first.");
+      return;
+    }
     setBusy(true);
     setVoiceError(null);
-    if (listening) {
+    setAutoPlayAnswer(false);
+    if (listening || connecting) {
       const result = stopRef.current?.();
       if (result instanceof Promise) await result;
       stopRef.current = null;
       setListening(false);
+      setConnecting(false);
     }
 
     try {
+      const { redacted, newTokens, newTokenMeta } = await prepareVoiceQuestion(
+        rawQuestion,
+        flow.redaction.tokenMap,
+      );
+      setRedactedPreview(redacted);
+      flow.mergeVoiceRedaction(newTokens, newTokenMeta);
+
       const result = await askVoiceQuestion({
-        transcript: transcript.trim(),
+        transcript: redacted,
         sessionId: flow.sessionId,
         redactedText: flow.redaction.redacted,
         targetLanguage: flow.targetLanguage,
       });
 
-      setAnswer(result.answer_text);
-      setTtsPreview(result.tts_text);
-      const meta: string[] = [];
-      if (result.from_cache) meta.push("LangCache hit");
-      if (result.memory_turns) meta.push(`${result.memory_turns} prior turn(s) from Agent Memory`);
-      setVoiceMeta(meta.length > 0 ? meta.join(" · ") : null);
-
-      const audioBuf = await fetchSpeakAudio(result.tts_text);
-      const blob = new Blob([audioBuf], { type: "audio/mpeg" });
-      const url = URL.createObjectURL(blob);
-      if (audioRef.current) {
-        audioRef.current.pause();
-        URL.revokeObjectURL(audioRef.current.src);
+      const validation = validateTranslationOutput(
+        result.answer_text,
+        { ...flow.redaction.tokenMap, ...newTokens },
+        flow.sessionId,
+      );
+      if (!validation.ok) {
+        setVoiceError(validation.fallback);
+        return;
       }
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      await audio.play();
+
+      setAnswer(validation.text);
+      setTtsText(result.tts_text);
+      setAutoPlayAnswer(true);
+      setVoiceMeta(`STT: ${sttLanguage} · tokenized answer only`);
     } catch (err) {
       Sentry.captureException(err instanceof Error ? err : new Error(formatError(err)));
       setVoiceError(formatError(err));
     } finally {
       setBusy(false);
     }
-  }, [flow, transcript, canUseVoice, listening]);
+  }, [flow, transcript, interim, canUseVoice, listening, connecting, sttLanguage]);
 
   if (!canUseVoice) {
     return (
       <p className="notice">
         <i className="ti ti-info-circle" /> Complete translation first — voice questions use the redacted document
-        context.
+        context only.
       </p>
     );
   }
 
+  const displayTranscript = [transcript, interim].filter(Boolean).join(interim && transcript ? " " : "");
+  const isLive = listening || connecting;
+
   return (
     <>
-      {listening && (
-        <div className="voice-mic-disclaimer">
-          <strong>Please type any ID numbers — don&apos;t say them out loud.</strong> Only general questions should be
-          spoken.
+      {isLive && (
+        <div className="voice-mic-disclaimer voice-mic-disclaimer-live">
+          <strong>Please type any ID numbers — don&apos;t say them out loud.</strong> Speak in {lang}. Audio goes to
+          Deepgram only; your question is redacted before Claude.
         </div>
       )}
 
-      <div className="summary-card">
+      <div className={`summary-card voice-panel${isLive ? " voice-panel-live" : ""}`}>
         <div className="summary-level">
           <span className="level-label">Ask about this letter</span>
+          {isLive && <span className="mic-pulse" aria-hidden="true" />}
+          {connecting && <span className="voice-status-chip">Connecting…</span>}
+          {listening && <span className="voice-status-chip voice-status-chip-live">Listening · {sttLanguage}</span>}
         </div>
+
         <p className="notice" style={{ marginBottom: 16 }}>
-          Try: &quot;What is this letter asking me to do?&quot; or &quot;What does RFE mean?&quot;
+          Speak or type in <strong>{lang}</strong>. Try a general question about what the letter is asking for.
         </p>
 
         <div className="tool-actions" style={{ marginBottom: 16 }}>
-          <button type="button" className={`btn ${listening ? "btn-ghost" : "btn-red"}`} onClick={() => void toggleMic()}>
-            <i className={`ti ${listening ? "ti-player-stop" : "ti-microphone"}`} /> {listening ? "Stop mic" : "Start mic"}
+          <button
+            type="button"
+            className={`btn ${isLive ? "btn-ghost" : "btn-red"}`}
+            onClick={() => void toggleMic()}
+            disabled={busy}
+          >
+            <i className={`ti ${isLive ? "ti-player-stop" : "ti-microphone"}`} />
+            {connecting ? "Connecting…" : listening ? "Stop mic" : "Start mic"}
           </button>
-          <button type="button" className="btn btn-ghost" disabled={busy || !transcript.trim()} onClick={() => void submitQuestion()}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={busy || !displayTranscript.trim()}
+            onClick={() => void submitQuestion()}
+          >
             {busy ? (
               <>
                 <span className="spinner" /> Asking…
@@ -140,23 +210,33 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
         </div>
 
         <label className="level-label" htmlFor="voice-transcript">
-          Transcript
+          Transcript <span style={{ opacity: 0.6 }}>(local · {sttLanguage})</span>
         </label>
         <textarea
           id="voice-transcript"
           className="voice-textarea"
           rows={3}
-          value={transcript}
-          onChange={(e) => setTranscript(e.target.value)}
-          placeholder="Speak or type your question…"
+          value={displayTranscript}
+          onChange={(e) => {
+            setTranscript(e.target.value);
+            setInterim("");
+          }}
+          placeholder={`Speak or type your question in ${lang}…`}
         />
+
+        {redactedPreview && (
+          <div className="voice-scrubbed-preview">
+            <span className="level-label">Scrubbed question sent to Claude</span>
+            <p className="voice-scrubbed-text">{redactedPreview}</p>
+          </div>
+        )}
       </div>
 
       {busy && (
         <LoadingState
           variant="panel"
           title="Processing your question"
-          subtitle="Claude is answering from redacted context — preparing TTS on PII-free text."
+          subtitle="Redacting in browser, then Claude answers from tokenized context only."
         />
       )}
 
@@ -168,23 +248,20 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
 
       {voiceMeta && <p className="notice">{voiceMeta}</p>}
 
-      {answer && (
+      {answer && flow.redaction && (
         <div className="summary-card">
           <div className="summary-level">
-            <span className="level-label">Answer</span>
+            <span className="level-label">Answer (tokenized)</span>
           </div>
-          <div className="summary-text">{answer}</div>
-        </div>
-      )}
-
-      {ttsPreview && (
-        <div className="summary-card">
-          <div className="summary-level">
-            <span className="level-label">Text sent to TTS (verify: no raw PII)</span>
-          </div>
-          <div className="summary-text" style={{ fontSize: 13, color: "var(--cream-dim)" }}>
-            {ttsPreview}
-          </div>
+          <div className="summary-text">{renderTokenHighlights(answer, flow.redaction.tokenMeta)}</div>
+          <ExplanationTts
+            claudeTokenizedText={answer}
+            ttsText={ttsText}
+            targetLanguage={flow.targetLanguage}
+            langCode={flow.langCode}
+            label="Listen to answer"
+            autoPlay={autoPlayAnswer}
+          />
         </div>
       )}
     </>

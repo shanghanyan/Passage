@@ -1,13 +1,7 @@
 import type { Request, Response } from "express";
-import { getVoiceSessionTurns, isAgentMemoryConfigured, saveVoiceExchange } from "../lib/agent-memory.js";
 import { answerVoiceQuestion } from "../lib/claude.js";
 import { assertTtsTextSafe } from "../lib/deepgram.js";
-import {
-  buildVoiceCachePrompt,
-  isLangCacheConfigured,
-  searchVoiceCache,
-  storeVoiceCache,
-} from "../lib/lang-cache.js";
+import { extractExplanationText } from "../lib/explanation-text.js";
 import { captureExternalError } from "../lib/sentry.js";
 
 const FALLBACK = "We couldn't safely process this section — try again or review manually.";
@@ -29,53 +23,21 @@ export async function postVoiceQuestion(req: Request, res: Response): Promise<vo
   const question = transcript.trim();
 
   try {
-    const cachePrompt = buildVoiceCachePrompt(redacted_text, question);
-    let answer: string;
-    let fromCache = false;
-    let memoryTurns = 0;
-
-    const cached = await searchVoiceCache(cachePrompt);
-    if (cached) {
-      answer = cached;
-      fromCache = true;
-    } else {
-      const priorTurns = await getVoiceSessionTurns(sessionId);
-      memoryTurns = priorTurns.length;
-
-      const claudeTurns = priorTurns.map((turn) => ({
-        role: turn.role,
-        content: turn.text,
-      }));
-
-      const result = await answerVoiceQuestion(
-        redacted_text,
-        targetLanguage,
-        question,
-        claudeTurns,
-      );
-      answer = result.answer;
-
-      void storeVoiceCache(cachePrompt, answer).catch((err) =>
-        console.warn("LangCache store skipped:", (err as Error).message),
-      );
-    }
+    const result = await answerVoiceQuestion(redacted_text, targetLanguage, question, []);
+    const answer = result.answer;
 
     assertTtsTextSafe(answer);
-
-    if (isAgentMemoryConfigured()) {
-      void saveVoiceExchange(sessionId, question, answer).catch((err) =>
-        console.warn("Agent memory save skipped:", (err as Error).message),
-      );
-    }
+    const ttsText = extractExplanationText(answer) || answer;
+    assertTtsTextSafe(ttsText);
 
     res.json({
       ok: true,
       answer_text: answer,
-      tts_text: answer,
-      from_cache: fromCache,
-      memory_turns: memoryTurns,
-      agent_memory: isAgentMemoryConfigured(),
-      langcache: isLangCacheConfigured(),
+      tts_text: ttsText,
+      from_cache: false,
+      memory_turns: 0,
+      agent_memory: false,
+      langcache: false,
     });
   } catch (err) {
     captureExternalError("voice-question", err, { sessionId });

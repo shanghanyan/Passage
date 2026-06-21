@@ -2,9 +2,17 @@ import { useEffect } from "react";
 import { useLauncherSession } from "../hooks/useLauncherSession";
 import { usePassageFlow } from "../hooks/usePassageFlow";
 import { AnalysisView } from "./AnalysisView";
-import { LandingPage, scrollToId } from "./LandingPage";
+import { InputPhase } from "./InputPhase";
 import { LoadingState } from "./LoadingState";
-import { UploadToolSection } from "./UploadToolSection";
+import { PrivacyTab } from "./PrivacyTab";
+
+const PHASE_LABELS: Record<string, string> = {
+  input: "1 · Paste",
+  preview: "2 · Privacy review",
+  translating: "3 · Translating",
+  done: "4 · Results",
+  blocked: "4 · Blocked",
+};
 
 export function PassageApp() {
   const flow = usePassageFlow();
@@ -18,57 +26,59 @@ export function PassageApp() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  const showResults = flow.phase === "done" || flow.phase === "blocked" || flow.phase === "translating";
+
   return (
-    <div className="passage-shell">
+    <div className="passage-shell passage-workflow">
       <nav className="nav" id="mainNav">
-        <button
-          type="button"
-          className="nav-logo"
-          onClick={() => {
-            if (flow.view === "analysis") flow.goBack();
-            else window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-          style={{ border: "none", background: "none" }}
-        >
+        <button type="button" className="nav-logo" onClick={flow.startOver} style={{ border: "none", background: "none" }}>
           <div className="nav-cross">✛</div>
           <div className="nav-wordmark">PASSAGE</div>
         </button>
-        {flow.view === "upload" && (
-          <div className="nav-links">
-            <span className="nav-link" onClick={() => scrollToId("features")}>
-              Features
-            </span>
-            <span className="nav-link" onClick={() => scrollToId("how")}>
-              How It Works
-            </span>
-            <span className="nav-link" onClick={() => scrollToId("tool")}>
-              Tool
-            </span>
-          </div>
-        )}
-        {flow.view === "upload" ? (
-          <button type="button" className="nav-cta" onClick={() => scrollToId("tool")}>
-            <i className="ti ti-wand" /> Try Passage
-          </button>
-        ) : (
-          <button type="button" className="nav-cta" onClick={flow.goBack}>
-            <i className="ti ti-arrow-left" /> New Document
+        <div className="workflow-phase-strip">
+          {(["input", "preview", "translating", "done"] as const).map((step) => {
+            const active =
+              flow.phase === step ||
+              (step === "done" && (flow.phase === "done" || flow.phase === "blocked")) ||
+              (step === "translating" && flow.phase === "translating");
+            const reached =
+              (step === "input") ||
+              (step === "preview" && flow.phase !== "input") ||
+              (step === "translating" && (flow.phase === "translating" || flow.phase === "done" || flow.phase === "blocked")) ||
+              (step === "done" && (flow.phase === "done" || flow.phase === "blocked"));
+            return (
+              <span key={step} className={`workflow-phase${active ? " active" : ""}${reached ? " reached" : ""}`}>
+                {step === "done" && flow.phase === "blocked" ? PHASE_LABELS.blocked : PHASE_LABELS[step]}
+              </span>
+            );
+          })}
+        </div>
+        {flow.phase !== "input" && (
+          <button type="button" className="nav-cta" onClick={flow.startOver}>
+            <i className="ti ti-file-plus" /> New document
           </button>
         )}
       </nav>
 
-      {flow.view === "upload" ? (
-        <div className="passage-main">
-          <LandingPage />
-          <UploadToolSection flow={flow} />
+      <main className="passage-main workflow-main">
+        <div className="workflow-inner">
+          {flow.phase === "input" && <InputPhase flow={flow} />}
+
+          {flow.phase === "preview" && (
+            <section className="workflow-card">
+              <div className="workflow-card-head">
+                <h2>Scrubbed preview</h2>
+                <p className="notice">
+                  Tokens replace real values. Only token text reaches Claude — tap a highlight to verify detection.
+                </p>
+              </div>
+              <PrivacyTab flow={flow} />
+            </section>
+          )}
+
+          {showResults && <AnalysisView flow={flow} />}
         </div>
-      ) : (
-        <section className="tool-section passage-analysis passage-main">
-          <div className="tool-inner">
-            <AnalysisView flow={flow} />
-          </div>
-        </section>
-      )}
+      </main>
 
       {flow.detecting && (
         <LoadingState
@@ -86,41 +96,9 @@ export function PassageApp() {
         />
       )}
 
-      <footer className="footer">
+      <footer className="footer footer-compact">
         <div className="footer-inner">
-          <div className="footer-top">
-            <div>
-              <div className="footer-brand">
-                <em>✛</em> PASSAGE
-              </div>
-              <p className="footer-desc">
-                Privacy-first translation and explanation for immigration paperwork — with redaction you can verify in
-                devtools.
-              </p>
-              <div className="footer-legal">
-                <strong>Legal Notice</strong>
-                Passage explains documents in plain language. It does not provide legal advice or tell anyone how to
-                respond.
-              </div>
-            </div>
-            <div>
-              <div className="footer-col-head">Features</div>
-              <div className="footer-links">
-                <span className="footer-link" onClick={() => scrollToId("tool")}>
-                  Translation
-                </span>
-                <span className="footer-link" onClick={() => scrollToId("tool")}>
-                  Privacy Shield
-                </span>
-                <span className="footer-link" onClick={() => scrollToId("tool")}>
-                  Voice Q&amp;A
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="footer-bottom">
-            <span className="footer-copy">UC Berkeley AI Hackathon 2026 — World Track</span>
-          </div>
+          <span className="footer-copy">UC Berkeley AI Hackathon 2026 — World Track · Not legal advice</span>
         </div>
       </footer>
 
