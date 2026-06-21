@@ -54,13 +54,22 @@ If macOS still warns, right-click **Launch Passage.app** → **Open** → **Open
 
 ## Run Passage
 
-From the repo root:
+**After setup, start Passage one of these ways** (both use the same launcher — server, client, observability picker, and auto-shutdown when you close the browser tab):
+
+| Method | How |
+|---|---|
+| **macOS app** | Double-click **`Launch Passage.app`** in the repo root |
+| **Terminal** | From the repo root: `npm run launch` |
+
+Optional flags (terminal only): `--cloud` for Arize AX Cloud traces, `--local` for local Phoenix (Docker). On macOS, the app shows a dialog to pick observability instead.
 
 ```bash
-./scripts/fix-launch-app.sh          # macOS — safe to re-run
+npm run launch                       # default — observability picker (app) or Phoenix (terminal)
 npm run launch -- --cloud            # Arize AX Cloud traces
 # npm run launch -- --local          # Local Phoenix (Docker) instead
 ```
+
+Re-run `./scripts/fix-launch-app.sh` only if macOS blocks the app again — not needed for every launch.
 
 Browser opens at **http://localhost:5173**. Pick your **translation language** on the landing screen first — the whole UI (nav, redaction review, tabs, voice controls, warnings) follows that choice. **Close that tab** when you are done — the launcher stops server and client automatically.
 
