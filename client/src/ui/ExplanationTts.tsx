@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatError } from "../lib/errors";
 import { extractExplanationText, ttsVoiceForLanguage } from "../lib/explanation-text";
+import { replaceTokensForSpeech } from "../lib/token-speech";
 import { hasNativeTtsVoice } from "../lib/languages";
 import { fetchSpeakAudio } from "../lib/voice";
 import { useUiLocale } from "../i18n/useUiLocale";
@@ -35,17 +36,49 @@ export function ExplanationTts({
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const autoPlayedRef = useRef(false);
   const { t, tf } = useUiLocale(uiLocale);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const blobUrlRef = useRef<string | null>(null);
-  const explanation = ttsText?.trim() || extractExplanationText(claudeTokenizedText);
+  /** Bumps when playback should stop — stale fetch/play promises bail out. */
+  const loadGenerationRef = useRef(0);
+  const autoPlayedForRef = useRef("");
+
+  const explanationRaw = ttsText?.trim() || extractExplanationText(claudeTokenizedText);
+  const explanation = replaceTokensForSpeech(explanationRaw, langCode);
   const voice = ttsVoiceForLanguage(targetLanguage);
   const usesEnglishVoice = !hasNativeTtsVoice(langCode);
   const listenLabel = label ?? t("tts.listenExplanation");
 
-  const cleanupAudio = useCallback(() => {
+  const stopPlayback = useCallback(() => {
+    loadGenerationRef.current += 1;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.removeAttribute("src");
+      audioRef.current.load();
+      audioRef.current = null;
+    }
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+    setPlaying(false);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => () => stopPlayback(), [stopPlayback]);
+
+  useEffect(() => {
+    stopPlayback();
+    autoPlayedForRef.current = "";
+  }, [explanationRaw, stopPlayback]);
+
+  const playExplanation = useCallback(async () => {
+    if (!explanation.trim()) {
+      throw new Error(t("tts.noExplanation"));
+    }
+
+    const loadId = ++loadGenerationRef.current;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
@@ -54,33 +87,38 @@ export function ExplanationTts({
       URL.revokeObjectURL(blobUrlRef.current);
       blobUrlRef.current = null;
     }
-    setPlaying(false);
-  }, []);
-
-  useEffect(() => () => cleanupAudio(), [cleanupAudio]);
-
-  const ensureAudioLoaded = useCallback(async () => {
-    if (!explanation.trim()) {
-      throw new Error(t("tts.noExplanation"));
-    }
-    if (audioRef.current && blobUrlRef.current) return;
 
     setLoading(true);
     setError(null);
+    setPlaying(false);
+
     try {
       const audioBuf = await fetchSpeakAudio(explanation, targetLanguage);
-      const blob = new Blob([audioBuf], { type: "audio/mpeg" });
-      const url = URL.createObjectURL(blob);
+      if (loadId !== loadGenerationRef.current) return;
+
+      const url = URL.createObjectURL(new Blob([audioBuf], { type: "audio/mpeg" }));
       blobUrlRef.current = url;
       const audio = new Audio(url);
-      audio.onended = () => setPlaying(false);
-      audio.onpause = () => setPlaying(false);
-      audio.onplay = () => setPlaying(true);
+      audio.playbackRate = playbackRate;
+      audio.onended = () => {
+        if (audioRef.current === audio) setPlaying(false);
+      };
+      audio.onpause = () => {
+        if (audioRef.current === audio) setPlaying(false);
+      };
+      audio.onplay = () => {
+        if (audioRef.current === audio) setPlaying(true);
+      };
       audioRef.current = audio;
+      await audio.play();
+    } catch (err) {
+      if (loadId !== loadGenerationRef.current) return;
+      setError(formatError(err));
+      stopPlayback();
     } finally {
-      setLoading(false);
+      if (loadId === loadGenerationRef.current) setLoading(false);
     }
-  }, [explanation, targetLanguage, t]);
+  }, [explanation, targetLanguage, playbackRate, stopPlayback, t]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -91,28 +129,22 @@ export function ExplanationTts({
   const handlePlayPause = useCallback(async () => {
     try {
       if (playing && audioRef.current) {
-        audioRef.current.pause();
+        stopPlayback();
         return;
       }
-      await ensureAudioLoaded();
-      if (!audioRef.current) return;
-      audioRef.current.playbackRate = playbackRate;
-      await audioRef.current.play();
+      await playExplanation();
     } catch (err) {
       setError(formatError(err));
-      cleanupAudio();
+      stopPlayback();
     }
-  }, [playing, ensureAudioLoaded, cleanupAudio, playbackRate]);
+  }, [playing, playExplanation, stopPlayback]);
 
   useEffect(() => {
-    if (!autoPlay || !explanation.trim() || autoPlayedRef.current) return;
-    autoPlayedRef.current = true;
-    void handlePlayPause();
-  }, [autoPlay, explanation, handlePlayPause]);
-
-  useEffect(() => {
-    if (!autoPlay) autoPlayedRef.current = false;
-  }, [autoPlay, claudeTokenizedText]);
+    if (!autoPlay || !explanation.trim()) return;
+    if (autoPlayedForRef.current === explanationRaw) return;
+    autoPlayedForRef.current = explanationRaw;
+    void playExplanation();
+  }, [autoPlay, explanationRaw, explanation, playExplanation]);
 
   if (!explanation.trim()) return null;
 
@@ -137,13 +169,11 @@ export function ExplanationTts({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="voice-label">{statusLabel}</div>
         <div style={{ fontSize: 11, color: "var(--cream-faint)", marginTop: 2 }}>
-          {usesEnglishVoice ? (
+          {usesEnglishVoice && (
             <span className="tts-fallback-note">
               <i className="ti ti-alert-circle" />{" "}
               {tf("tts.englishVoiceFallback", { voice, language: targetLanguage })}
             </span>
-          ) : (
-            <span>{tf("tts.nativeVoiceNote", { voice })}</span>
           )}
         </div>
       </div>
@@ -174,4 +204,4 @@ export function ExplanationTts({
       </details>
     </div>
   );
-}
+};

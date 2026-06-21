@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./sentry-scrub": "./sentry-scrub.ts",
-    "./explanation-text": "./explanation-text.ts"
+    "./explanation-text": "./explanation-text.ts",
+    "./token-speech": "./token-speech.ts"
   }
 }

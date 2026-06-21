@@ -3,6 +3,7 @@
  * Run: npm run verify:explanation-tts --prefix client
  */
 import { extractExplanationText, extractTranslationText, ttsVoiceForLanguage } from "../src/lib/explanation-text.ts";
+import { replaceTokensForSpeech } from "../src/lib/token-speech.ts";
 
 const TOKENIZED = `## Traducción
 El documento menciona ⟦PII:NAME:1⟧ con fecha ⟦PII:DOB:1⟧.
@@ -43,6 +44,12 @@ assert(ttsVoiceForLanguage("Spanish") === "aura-2-celeste-es", "Spanish voice");
 assert(ttsVoiceForLanguage("French") === "aura-2-agathe-fr", "French voice");
 assert(ttsVoiceForLanguage("English") === "aura-2-asteria-en", "English voice");
 
-console.log("PASS — translation/explanation split; TTS uses explanation only; voices mapped.");
+const spoken = replaceTokensForSpeech(explanation, "es");
+assert(spoken.includes("fecha de nacimiento"), "TTS speakable stand-in uses answer language");
+assert(!spoken.includes("⟦"), "TTS payload strips bracket tokens");
+assert(!spoken.includes("03/14/1991"), "TTS speakable path excludes raw DOB");
+assert(!spoken.includes("P I I"), "TTS stand-ins avoid English letter spelling");
+
+console.log("PASS — translation/explanation split; TTS uses speakable token stand-ins; voices mapped.");
 console.log("Sample translation (first 80 chars):", translation.slice(0, 80));
-console.log("Sample TTS payload (first 120 chars):", explanation.slice(0, 120));
+console.log("Sample TTS payload (first 120 chars):", spoken.slice(0, 120));

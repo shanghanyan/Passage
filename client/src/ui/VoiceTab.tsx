@@ -27,7 +27,6 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [autoListen, setAutoListen] = useState(false);
   const stopRef = useRef<(() => void | Promise<void>) | null>(null);
-  const [autoPlayAnswer, setAutoPlayAnswer] = useState(false);
 
   const canUseVoice = flow.phase === "done" && flow.redaction && flow.translationReady;
   const sttLanguage = sttLanguageFromCode(flow.langCode);
@@ -56,7 +55,6 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
     setRedactedPreview("");
     setAnswer("");
     setTtsText("");
-    setAutoPlayAnswer(false);
     try {
       const { stop, mode } = await startLiveTranscription(
         (text, isFinal) => {
@@ -107,7 +105,8 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
     }
     setBusy(true);
     setVoiceError(null);
-    setAutoPlayAnswer(false);
+    setAnswer("");
+    setTtsText("");
     if (listening || connecting) {
       const result = stopRef.current?.();
       if (result instanceof Promise) await result;
@@ -147,7 +146,6 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
 
       setAnswer(validation.text);
       setTtsText(result.tts_text);
-      setAutoPlayAnswer(autoListen);
       const meta: string[] = [`STT: ${sttLanguage}`];
       if (result.from_cache) {
         const sim =
@@ -303,6 +301,15 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
                 <span className="micro-label">{t("voice.whatItSays")}</span>
               </div>
               <div className="summary-text pane-body">{renderTokenHighlights(answer, flow.redaction.tokenMeta)}</div>
+              <ExplanationTts
+                claudeTokenizedText={answer}
+                ttsText={answer}
+                targetLanguage={flow.targetLanguage}
+                langCode={flow.langCode}
+                uiLocale={flow.uiLocale}
+                label={t("voice.listenToAnswer")}
+                autoPlay={autoListen}
+              />
             </div>
             <div className="doc-pane">
               <div className="pane-header">
@@ -310,21 +317,10 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
               </div>
               <div className="pane-body">
                 {readableMeans ? (
-                  <p className="summary-text" style={{ marginBottom: 12 }}>
-                    {readableMeans}
-                  </p>
+                  <p className="summary-text">{readableMeans}</p>
                 ) : (
                   <p className="notice">{t("voice.readBackPlaceholder")}</p>
                 )}
-                <ExplanationTts
-                  claudeTokenizedText={answer}
-                  ttsText={ttsText}
-                  targetLanguage={flow.targetLanguage}
-                  langCode={flow.langCode}
-                  uiLocale={flow.uiLocale}
-                  label={t("voice.listenToAnswer")}
-                  autoPlay={autoPlayAnswer}
-                />
               </div>
             </div>
           </RiseIn>
