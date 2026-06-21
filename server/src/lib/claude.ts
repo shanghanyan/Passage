@@ -53,6 +53,7 @@ export async function answerVoiceQuestion(
   redactedText: string,
   targetLanguage: string,
   transcript: string,
+  priorTurns: Array<{ role: "user" | "assistant"; content: string }> = [],
 ): Promise<{ answer: string; traceId: string }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
@@ -62,14 +63,23 @@ export async function answerVoiceQuestion(
     SYSTEM_PROMPT.replace("{{target_language}}", targetLanguage) +
     VOICE_ADDENDUM.replace("{{target_language}}", targetLanguage);
 
-  const userContent = `Redacted document:\n${redactedText}\n\nUser question: ${transcript}`;
+  const messages: Anthropic.MessageParam[] = [
+    ...priorTurns.map((turn) => ({
+      role: turn.role,
+      content: turn.content,
+    })),
+    {
+      role: "user" as const,
+      content: `Redacted document:\n${redactedText}\n\nUser question: ${transcript}`,
+    },
+  ];
 
   try {
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 800,
       system,
-      messages: [{ role: "user", content: userContent }],
+      messages,
     });
 
     const block = message.content[0];

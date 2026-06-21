@@ -10,10 +10,14 @@ export async function fetchDeepgramAuth(): Promise<DeepgramAuth> {
   return res.json();
 }
 
-export interface VoiceQuestionResponse {
+interface VoiceQuestionResponse {
   ok: true;
   answer_text: string;
   tts_text: string;
+  from_cache?: boolean;
+  memory_turns?: number;
+  agent_memory?: boolean;
+  langcache?: boolean;
 }
 
 export async function askVoiceQuestion(params: {

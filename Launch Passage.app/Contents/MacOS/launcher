@@ -1,0 +1,6 @@
+#!/bin/bash
+# macOS app launcher — repo root is three levels up from MacOS/
+REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
+cd "$REPO" || exit 1
+export PASSAGE_LAUNCH_QUIET=1
+exec /usr/bin/env node "$REPO/launch.mjs"

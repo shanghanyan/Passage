@@ -8,6 +8,7 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
   const [transcript, setTranscript] = useState("");
   const [answer, setAnswer] = useState("");
   const [ttsPreview, setTtsPreview] = useState("");
+  const [voiceMeta, setVoiceMeta] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const stopRef = useRef<(() => void | Promise<void>) | null>(null);
@@ -70,6 +71,10 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
 
       setAnswer(result.answer_text);
       setTtsPreview(result.tts_text);
+      const meta: string[] = [];
+      if (result.from_cache) meta.push("LangCache hit");
+      if (result.memory_turns) meta.push(`${result.memory_turns} prior turn(s) from Agent Memory`);
+      setVoiceMeta(meta.length > 0 ? meta.join(" · ") : null);
       console.log("[Passage Phase 6] TTS payload (must be PII-free):", result.tts_text);
 
       const audioBuf = await fetchSpeakAudio(result.tts_text);
@@ -140,6 +145,12 @@ export function VoiceTab({ flow }: { flow: PassageFlow }) {
       {voiceError && (
         <p className="error" role="alert">
           {voiceError}
+        </p>
+      )}
+
+      {voiceMeta && (
+        <p className="hint" style={{ marginTop: 8 }}>
+          {voiceMeta}
         </p>
       )}
 

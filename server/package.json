@@ -15,7 +15,12 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@arizeai/openinference-instrumentation-anthropic": "^0.1.13",
+    "@arizeai/openinference-semantic-conventions": "^2.5.0",
     "@arizeai/phoenix-otel": "^1.0.2",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.219.0",
+    "@opentelemetry/resources": "^2.8.0",
+    "@opentelemetry/sdk-trace-base": "^2.8.0",
+    "@opentelemetry/sdk-trace-node": "^2.8.0",
     "@sentry/node": "^10.59.0",
     "@upstash/redis": "^1.34.3",
     "cors": "^2.8.5",

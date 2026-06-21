@@ -15,6 +15,7 @@ build/
 
 # Logs
 *.log
+.passage-launch.log
 npm-debug.log*
 
 # OS / editor
