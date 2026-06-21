@@ -39,7 +39,7 @@ export function captureValidationMismatch(extra: Record<string, unknown>): void 
 
 export function captureTranslationMeaningFailure(extra: Record<string, unknown>): void {
   initSentry();
-  Sentry.captureMessage("Translation meaning verification failed — output blocked", {
+  Sentry.captureMessage("Translation date/deadline drift — output blocked", {
     level: "error",
     extra: scrubSentryExtra(extra),
   });

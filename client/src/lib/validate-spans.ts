@@ -1,6 +1,6 @@
 import type { DetectedSpan } from "./types";
 
-const MAX_NER_NAME_LEN = 60;
+const MAX_NER_NAME_LEN = 80;
 const MAX_NER_ADDRESS_LEN = 120;
 const MAX_NER_FRACTION = 0.35;
 

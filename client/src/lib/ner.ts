@@ -15,6 +15,9 @@ export async function loadNerModel(): Promise<TokenClassificationPipeline> {
   return nerPipeline;
 }
 
+/** Minimum NER score to keep — recall-first: under-redaction leaks a name; over-redaction costs a token. */
+export const RECALL_BIAS_NER_MIN_SCORE = 0.35;
+
 /** Map NER entity labels to our PII types. */
 function mapEntityLabel(label: string): "NAME" | "ADDRESS" | null {
   const normalized = label.replace(/^B-|^I-/, "");
@@ -32,12 +35,14 @@ export async function detectNerSpans(text: string): Promise<DetectedSpan[]> {
     const type = mapEntityLabel(entity.entity_group ?? entity.entity ?? "");
     if (!type) continue;
     if (entity.start === undefined || entity.end === undefined) continue;
+    const score = typeof entity.score === "number" ? entity.score : 1;
+    if (score < RECALL_BIAS_NER_MIN_SCORE) continue;
     spans.push({
       type,
       start: entity.start,
       end: entity.end,
       value: text.slice(entity.start, entity.end),
-      confidence: entity.score,
+      confidence: score,
       source: "ner",
     });
   }

@@ -43,7 +43,7 @@ export interface DetectPiiResult {
   nerError?: string;
 }
 
-/** NER is best-effort — regex-only fallback if the model fails to load or run. */
+/** NER is best-effort with recall-first tuning — prefer over-redaction to leaking names to Claude. */
 export async function detectPiiWithStatus(
   text: string,
   options: { includeNer?: boolean } = {},

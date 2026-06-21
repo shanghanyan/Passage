@@ -36,6 +36,10 @@ const NAME_DEAR = /\bDear\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/g;
 const NAME_ACTION_LEAD =
   /\b([A-Z][a-z]+(?:\s+(?:[A-Z]\.\s+)?[A-Z][a-z]+)+)\s+(?:submitted|filed|must|appeared|signed|received)\b/g;
 
+/** Recall-first: full value after name labels — includes Vietnamese, Arabic, Korean, etc. */
+const NAME_LINE_LABELED =
+  /(?:^|[\r\n])\s*(?:Name|Beneficiary|Applicant(?:\s+Name)?|Respondent|Petitioner|Re)\s*:\s*([^\n,;]+)/gi;
+
 const MONTH_WORDS = new Set([
   "january", "february", "march", "april", "may", "june",
   "july", "august", "september", "october", "november", "december",
@@ -48,7 +52,7 @@ function isLikelyName(value: string): boolean {
   if (MONTH_WORDS.has(firstWord)) return false;
   if (/^(form|notice|dear|date|uscis|department|section|page|named|above|holder|record)$/i.test(firstWord)) return false;
   if (/^\d/.test(trimmed)) return false;
-  return /[A-Za-z]/.test(trimmed);
+  return /[\p{L}]/u.test(trimmed);
 }
 
 function pushNameSpan(
@@ -129,6 +133,14 @@ export function detectNameSpans(text: string): Array<{ start: number; end: numbe
   for (const match of text.matchAll(NAME_ACTION_LEAD)) {
     if (match.index === undefined || !match[1]) continue;
     pushNameSpan(spans, text, match.index, match.index + match[1].length);
+  }
+
+  for (const match of text.matchAll(NAME_LINE_LABELED)) {
+    if (match.index === undefined || !match[1]) continue;
+    const value = match[1].trim();
+    if (!value) continue;
+    const labelEnd = match.index + match[0].length - value.length;
+    pushNameSpan(spans, text, labelEnd, labelEnd + value.length);
   }
 
   NAME_LABEL.lastIndex = 0;

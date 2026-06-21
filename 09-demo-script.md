@@ -14,15 +14,17 @@ One-line pitch: translates and explains immigration paperwork — your identity 
 
 3. **(40s)** **Fail-closed validation (Sentry)** — separate from detection gap. Run `npm run verify:sentry-browser --prefix client` once before stage, or rehearse in a spare tab: corrupted token → validation failure panel, **no** translation pane. Show Sentry event with token **keys** only.
 
-4. **(45s)** Voice Q&A — ask “what is this letter asking me to do?” Show scrubbed question preview. **Play read-back** on tokenized explanation (manual, not autoplay).
+4. **(30s)** **Date/deadline back-translate** — mention in close or if a doc with a deadline blocks when dates drift (optional live beat; Sentry event: "date/deadline drift").
 
-5. **(20s)** Translation tab: redacted source ↔ tokenized translation side by side. Say out loud: raw values were never reinserted and never persisted.
+5. **(40s)** Voice Q&A — emphasize **audio path ≠ text path**; show scrubbed question preview.
+
+6. **(20s)** Translation tab: tokenized side-by-side. Raw values never persisted.
 
 ## Impact / close (1m05s)
 
-- Privacy *architecture* vs policy — judges can verify in devtools.
-- Non-goal: explains the document, never drafts a response.
-- Roadmap: higher recall NER, spoken-DOB patterns, optional on-device voice.
+- Privacy *architecture* vs policy — verify in devtools; volunteer [what we don't claim](../README.md#what-we-dont-claim).
+- Back-translate catches **date/deadline drift**, not full translation correctness.
+- Thesis: innovation is what you **don't** send.
 
 ## Optional (judge asks about detection limits)
 

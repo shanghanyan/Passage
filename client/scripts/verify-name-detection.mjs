@@ -40,19 +40,19 @@ const NON_LATIN_CASES = [
     id: "vietnamese-name",
     text: "Beneficiary: Nguyễn Thị Lan\nA-Number: A123456789\nRespond by June 15, 2025.",
     name: "Nguyễn Thị Lan",
-    expectDetected: false,
+    expectDetected: true,
   },
   {
     id: "korean-name",
     text: "Applicant: 김민준\nA-Number: A987654321\nBiometrics scheduled.",
     name: "김민준",
-    expectDetected: false,
+    expectDetected: true,
   },
   {
     id: "arabic-name",
     text: "Name: فاطمة الحسن\nA-87654321\nPlease appear for interview.",
     name: "فاطمة الحسن",
-    expectDetected: false,
+    expectDetected: true,
   },
   {
     id: "tagalog-name",

@@ -1,6 +1,8 @@
 # Passage — Project Architecture & File Reference
 
-**Passage** is a UC Berkeley AI Hackathon 2026 (World Track) demo: paste U.S. immigration correspondence, detect and redact PII in the browser, translate and explain it via Claude in 11 languages, then ask follow-up questions by voice — with an **inspectable privacy boundary** (best-effort detection, fail-closed output validation, per-type recall metrics) and **translation quality checks** (back-translation, immigration glossary).
+**Passage** is a UC Berkeley AI Hackathon 2026 (World Track) demo: paste U.S. immigration correspondence, detect and redact PII in the browser (recall-first), translate via Claude in 11 languages, ask follow-up questions by voice — with an **inspectable privacy boundary** and a **date/deadline back-translation check** (not general translation QA).
+
+**Thesis for judges:** the innovation is **what you don't send**, not what the model does. Backend = prompt + API call; privacy architecture + verification harness = the sophistication.
 
 This document describes the system architecture, every source file in the repository, what each file depends on, and an honest assessment of what is technically strong versus what is conventional or hackathon-scoped.
 
@@ -73,7 +75,18 @@ flowchart TB
   server --> Sentry
 ```
 
-**The architectural bet:** redaction is a **boundary on what leaves the browser to external APIs**, not a categorical detection guarantee. Detection is best-effort (regex + CoNLL-2003 NER); output validation and back-translation checks fail closed. Tokens are preserved through Claude; the UI shows tokenized text by default (local reinsert from `tokenMap` is privacy-neutral but not enabled in demo UI).
+**The architectural bet:** redaction is a **boundary on what leaves the browser to external APIs**, not a categorical detection guarantee. Detection is **recall-first** (NER ≥ 0.35, label-line names for non-Latin scripts) but undetected PII can still pass — we measure per-type recall honestly. Output validation and date/deadline back-translation fail closed.
+
+---
+
+## What we don't claim
+
+| Exposure | Detail |
+|---|---|
+| **Undetected names** | Recall metrics surface weakness; tuning reduces but does not eliminate leaks to Claude |
+| **Raw audio → Deepgram** | Spoken PII reaches a third party before transcript redaction |
+| **Server extract fallback** | Raw file bytes if client pdf.js/Tesseract fails |
+| **Translation QA** | Back-translate checks dates/deadlines only — not clause meaning or form-field correctness |
 
 ---
 
@@ -85,7 +98,7 @@ flowchart TB
 | **Client runtime** | React 19, TypeScript, Vite 6 |
 | **Client extract** | `pdfjs-dist`, `tesseract.js` — in-browser PDF/image OCR |
 | **UI localization** | `client/src/i18n/` — 11 locale packs |
-| **In-browser ML** | `@huggingface/transformers` — `Xenova/bert-base-NER` (CoNLL-2003) |
+| **In-browser ML** | `@huggingface/transformers` — `Xenova/bert-base-NER`; **recall-first** (min score 0.35) |
 | **Voice** | `@deepgram/sdk` — Nova-3 STT (redact + keywords), Aura-2 TTS |
 | **Server** | Express 4, TypeScript, `tsx` for dev |
 | **LLM** | Anthropic SDK — `claude-sonnet-4-6`; structured tool output + prompt caching |
@@ -103,14 +116,14 @@ flowchart TB
 |-------|-------|----------|-------|
 | Paste | Browser only | Yes | Never sent until user clicks send |
 | PDF/image extract | **Browser** (pdf.js + Tesseract.js) | Yes, local | Server fallback only if client fails (rate-limited) |
-| Detection | Browser | Yes | Regex + optional on-device NER; **fail-open** — undetected PII passes |
+| Detection | Browser | Yes | **Recall-first:** regex + NER (≥ 0.35) + label-line names (Unicode); fail-open ceiling remains |
 | Redaction | Browser | Replaced with tokens | `⟦PII:TYPE:n⟧` format |
-| Pre-send leakage scan | Browser | Block if known patterns remain | Re-checks same pattern classes as detection |
-| Session registration | Upstash via scoped creds | No | Marker + rate limits + launcher heartbeat |
-| Translate payload | Server → Claude | Tokens only | Structured tool output + glossary + prompt caching |
-| Back-translation verify | Server → Claude | Tokens only | Dates/deadlines diff — fail-closed |
-| Post-Claude validation | Browser | Fail-closed | Token check + raw-leak scan before render |
-| Voice STT | Deepgram | **Raw audio** | Transcript redacted in browser before Claude; STT redact + keyword boost |
+| Pre-send leakage scan | Browser | Block if known patterns remain | Same pattern classes as detection |
+| Session registration | Upstash | No | Markers + rate limits + launcher heartbeat |
+| Translate payload | Server → Claude | Tokens only | Structured output + glossary + caching |
+| Back-translation verify | Server → Claude | Tokens only | **Dates + day-count deadlines only** — fail-closed |
+| Post-Claude validation | Browser | Fail-closed | Token check + raw-leak scan |
+| Voice STT | Deepgram | **Raw audio** | Text path is cleaner; audio path is not equivalent |
 | Voice answer | Browser | Tokens only | TTS uses explanation section, also tokenized |
 | Agent Memory / LangCache | Redis Cloud | Redacted text only | LangCache hit rate returned to UI |
 | Sentry / OTEL | External | Scrubbed / metrics only | Per-type recall spans; recall-drop alerts |
@@ -243,9 +256,9 @@ Client and server import via `@passage/shared/*`; thin re-export shims remain in
 | File | Purpose | Uses | Assessment |
 |------|---------|------|------------|
 | `types.ts` | Domain types: PII kinds, spans, redaction results, translate/validation shapes | — | Well-structured shared types |
-| `patterns.ts` | Hand-written regex: A-number, SSN, DOB, passport (label-anchored), address heuristics; leakage scan | — | **Impressive** — careful immigration-specific heuristics |
-| `detect.ts` | Orchestrates regex + optional NER; merges and validates spans | `patterns`, `ner`, `merge-spans`, `validate-spans` | **Core** — graceful NER degradation |
-| `ner.ts` | On-device BERT NER via Transformers.js (`Xenova/bert-base-NER`); singleton pipeline | `@huggingface/transformers` | **Impressive** — real browser-local ML, zero server round-trip |
+| `patterns.ts` | Regex PII + label-line Unicode names; recall-first heuristics | — | Immigration-specific |
+| `detect.ts` | Regex + NER orchestration; recall-first policy | `patterns`, `ner`, … | Core |
+| `ner.ts` | BERT NER; `RECALL_BIAS_NER_MIN_SCORE = 0.35` | Transformers.js | Recall-first |
 | `merge-spans.ts` | Resolves overlapping spans by type priority (PASSPORT > A_NUMBER > … > ADDRESS) | `./types` | Solid algorithm |
 | `validate-spans.ts` | Filters junk NER spans (max length, fraction of document) | `./types` | Thoughtful guardrails |
 | `redact.ts` | Left-to-right replacement with `⟦PII:TYPE:n⟧`; session-scoped counters | `./types` | **Core privacy primitive** |
@@ -362,7 +375,7 @@ Client and server import via `@passage/shared/*`; thin re-export shims remain in
 | File | Purpose | Uses | Assessment |
 |------|---------|------|------------|
 | `claude.ts` | Translate + voice Q&A; **structured tool output**, glossary, prompt caching, back-translation verify | `@anthropic-ai/sdk` | **Impressive** — translation quality + privacy |
-| `translation-verify.ts` | Date/deadline diff after back-translation | — | **Core** — fail-closed meaning check |
+| `translation-verify.ts` | Date/deadline presence check after back-translate — **not** general meaning QA | — | Catches highest-frequency catastrophic error |
 | `immigration-glossary.ts` | USCIS/EOIR terms for Claude system prompt | — | Translation accuracy |
 | `session-store.ts` | Upstash launcher heartbeat + per-session rate limits | `@upstash/redis` | **Production-minded** Redis use |
 | `deepgram-keywords.ts` | STT keyword boosting + redact query params | — | Defense-in-depth for voice |
@@ -400,7 +413,7 @@ Client and server import via `@passage/shared/*`; thin re-export shims remain in
 
 | File | Purpose | Uses | Assessment |
 |------|---------|------|------------|
-| `synthetic-docs.json` | JSON mirror of client synthetic docs for batch scoring scripts | — | Data duplication from TS source |
+| `synthetic-docs.json` | **Generated** from `client/src/data/synthetic-docs.ts` via `npm run sync:synthetic-docs` | — | Single source of truth in client TS |
 
 ### `server/scripts/` — integration tests & ops
 
@@ -411,7 +424,8 @@ Client and server import via `@passage/shared/*`; thin re-export shims remain in
 | `test-phase6.ts` | Deepgram token, TTS PII guard, voice question/speak endpoints | deepgram; live `:3001` | Voice integration tests |
 | `test-explanation-text.ts` | Server-side explanation extraction unit test | `explanation-text.js` | Small unit test |
 | `test-document-extract.ts` | PDF/image extraction smoke test | `document-extract.js` | Upload path unit test |
-| `score-redaction-set.ts` | Batch score all synthetic docs → OTEL spans for trend comparison | detection-patterns, score-redaction, synthetic-docs.json | **Impressive** benchmarking tool |
+| `sync-synthetic-docs.mjs` | TS → JSON for server batch scripts | `client/.../synthetic-docs.ts` | Closes drift seam |
+| `score-redaction-set.ts` | Batch score synthetic docs → OTEL spans | detection-patterns, score-redaction | Benchmarking |
 | `trigger-sentry-validation.mjs` | Fire Sentry event with token keys only; writes audit JSON | `@sentry/node`, `@passage/shared` | Demo/audit tooling |
 | `audit-sentry-payload.mjs` | Scan exported Sentry JSON for forbidden raw PII strings | `node:fs` | Privacy audit script |
 | `export-eval-dataset.mjs` | Export synthetic doc metadata → `eval-dataset.jsonl` for Arize | `synthetic-docs.json` | Eval dataset bridge |
@@ -424,31 +438,31 @@ Client and server import via `@passage/shared/*`; thin re-export shims remain in
 
 1. **Privacy as architecture, not marketing** — Fail-closed output validation, back-translation checks, per-type recall, and Playwright network audits form a coherent **inspectable** boundary. Detection is honestly best-effort.
 
-2. **Translation quality** — Back-translation verification, immigration glossary, and structured Claude output address real user harm (missed deadlines) — not just privacy theater.
+2. **Translation — scoped QA** — Date/deadline back-translate catches one catastrophic failure mode; immigration glossary helps terminology; not legal-grade verification.
 
-3. **Browser-local NER + client-side extract** — Transformers.js NER and pdf.js/Tesseract extraction keep raw bytes local when the client path succeeds.
+3. **Recall-first detection** — Explicit NER floor (0.35), Unicode label-line names, per-type recall metrics; measuring weakness ≠ eliminating it.
 
-4. **Verification depth** — Playwright tests inspect network payloads and DOM; per-type recall in OTEL/Sentry.
+4. **Browser-local extract + NER** — Raw bytes stay local when client path succeeds.
 
-5. **Redis with real jobs** — Launcher heartbeat, rate limits, session markers — not just sponsor checkboxes.
+5. **Verification depth** — Playwright network audits; non-Latin name tests.
 
-6. **Deepgram defense-in-depth** — STT redaction flags + keyword boosting; raw audio exposure documented honestly.
+6. **Redis with real jobs** — Heartbeat, rate limits, session markers.
 
-7. **Shared `@passage/shared` package** — Single source for `sentry-scrub` and `explanation-text`.
+7. **Honest threat model** — Documented exposures: undetected names, raw audio, server fallback.
 
 ### What is conventional or hackathon-scoped
 
-1. **Demo scope** — No user auth; session-scoped rate limits only; dev Vite proxy; not multi-tenant production.
+1. **Thin backend** — Translation, voice, related-docs = prompt + API call; no RAG or orchestration. **Own this** — privacy architecture is the sophistication.
 
-2. **Synthetic docs duplicated** — `client/src/data/synthetic-docs.ts` ↔ `server/src/data/synthetic-docs.json`.
+2. **Synthetic docs** — TS source in client; JSON generated for server scripts (`sync:synthetic-docs`).
 
-3. **Detection floor** — CoNLL-2003 NER + Latin-centric regex; non-Latin names tracked via `recall.name`.
+3. **Detection ceiling** — Names without labels still miss; CoNLL-2003 NER limits remain.
 
-4. **Voice / Deepgram** — Raw audio reaches Deepgram; post-STT browser redaction before Claude.
+4. **Voice audio path** — Structurally dirtier than text path regardless of STT redact flags.
 
-5. **Claude-centric backend** — Related-documents is one-shot informational; no RAG or legal-grade QA.
+5. **Demo scope** — Session rate limits only; no user auth.
 
-6. **Translation quality** — Back-translation helps but is not a substitute for human review of deadlines.
+6. **Back-translation limits** — Round-tripping dates does not catch wrong-clause attachment or form-field misreads.
 
 ### Summary verdict
 
@@ -456,9 +470,8 @@ Client and server import via `@passage/shared/*`; thin re-export shims remain in
 |-----------|--------|-------|
 | **Privacy engineering** | Strong | Fail-closed output + honest detection floor + per-type metrics |
 | **Detection quality** | Good (demo) | NAME recall weakest on non-Latin scripts — measured, not hidden |
-| **Translation quality** | Improved | Back-translation + glossary; still not legal-grade |
-| **UX / polish** | Strong for hackathon | Client-side upload extract; tokenized display (local reinsert optional) |
-| **Backend sophistication** | Moderate+ | Rate limits, meaning verification, structured Claude output |
+| **Translation quality** | Scoped | Date/deadline back-translate only — not legal-grade QA |
+| **Backend sophistication** | Thin by design | Prompt + API; privacy architecture is the sophistication |
 | **Test / verify tooling** | Strong | Playwright privacy audits + non-Latin name gap tests |
 | **Production readiness** | Low | By design — demo and judge narrative first |
 
@@ -468,22 +481,20 @@ Client and server import via `@passage/shared/*`; thin re-export shims remain in
 
 | Issue | Detail |
 |-------|--------|
-| **Synthetic docs** | TS source + JSON mirror for server batch scripts — update both |
+| **Synthetic docs** | TS in `client/`; JSON generated via `npm run sync:synthetic-docs --prefix server` |
+| **Recall-first tuning** | NER ≥ 0.35; label-line Unicode names — see `ner.ts`, `patterns.ts` |
+| **Back-translation scope** | Dates + day-count deadlines only — not general correctness |
 | **Shared logic** | `@passage/shared` for scrub + explanation text |
-| **Launcher session** | Upstash Redis via `session-store.ts` — survives server restart |
-| **Upload path** | Primary: client pdf.js + Tesseract; fallback: `/api/extract-document` |
-| **NER first load** | Large model download on first analyze |
-| **Legal scope** | Explains documents; explicitly avoids response drafting |
-| **Display** | Tokenized by default; `tokenMap` reinsert is privacy-neutral (not in demo UI) |
+| **Threat model** | See README [What we don't claim](README.md#what-we-dont-claim) |
 
 ---
 
 ## Related documentation
 
-- [`README.md`](README.md) — setup, run commands, feature list
+- [`README.md`](README.md) — setup, threat model, feature list
 - [`08-error-log.md`](08-error-log.md) — known failure catalog
 - [`09-demo-script.md`](09-demo-script.md) — live demo script
 
 ---
 
-*Last updated for phases A–G: honest privacy framing, translation verification, client-side upload, per-type recall, Redis session/rate limits, Deepgram hardening, and `@passage/shared` package.*
+*Last updated: recall-first detection, honest threat model, date/deadline back-translate scope, synthetic-doc sync from TS source.*

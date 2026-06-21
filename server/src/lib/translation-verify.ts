@@ -23,7 +23,7 @@ export function extractDayCountDeadlines(text: string): string[] {
   return found;
 }
 
-/** Compare redacted source vs back-translated English for date/deadline drift. */
+/** Compare redacted source vs back-translated English for date/deadline presence only — not general translation correctness. */
 export function verifyTranslationMeaning(
   redactedSource: string,
   backTranslatedEnglish: string,

@@ -4,7 +4,7 @@
 
 Paste an immigration letter, get it translated and explained in your language, ask follow-up questions by voice — while detected PII is tokenized **before anything reaches Claude**. Output validation **fails closed**; detection is **best-effort** (regex + on-device NER) with per-type recall metrics you can verify in devtools.
 
-The differentiator isn't "we use Claude to translate." It's an **inspectable privacy boundary**: tokenize what we detect, validate Claude output, measure recall by PII type — plus back-translation checks that dates and deadlines survived translation.
+The differentiator isn't "we use Claude to translate." It's an **inspectable privacy boundary**: tokenize what we detect (recall-first — we over-redact when uncertain), validate Claude output, measure recall by PII type — plus a **date/deadline back-translation check** that catches the highest-frequency catastrophic translation error.
 
 ---
 
@@ -180,11 +180,11 @@ flowchart TB
 | Use | Endpoint / location | What goes to Claude |
 |---|---|---|
 | **Translation + explanation** | `POST /api/translate` → `server/src/lib/claude.ts` | Redacted text with `⟦PII:TYPE:n⟧` tokens only |
-| **Back-translation verify** | Same route (automatic) | Second pass — dates/deadlines diffed; fail-closed on drift |
+| **Date/deadline back-translate** | Same route (automatic) | Second pass — checks dates and "within N days" survive round-trip; **not** general correctness |
 | **Voice Q&A** | `POST /api/voice/question` | Redacted document context + redacted question (transcript scrubbed in browser first) |
-| **Related documents** | `POST /api/related-documents` → `server/src/lib/related-documents.ts` | Redacted text + `target_language` for localized process/doc labels |
+| **Related documents** | `POST /api/related-documents` | Redacted text + `target_language` (informational one-shot) |
 
-**Claude features:** structured tool output (`submit_translation`), immigration glossary in system prompt, prompt caching on system + document context, back-translation meaning verification before render.
+**Claude features:** structured tool output, immigration glossary, prompt caching. Backend is intentionally thin (prompt + API call per feature) — **the sophistication is the privacy architecture**, not model orchestration.
 
 ### Redis
 
@@ -204,7 +204,7 @@ Voice Q&A checks LangCache → Agent Memory → Claude in that order when config
 
 **Browser (optional):** `VITE_SENTRY_CLIENT_DSN` → `@sentry/react` in `client/src/lib/sentry.ts`.
 
-Shared `sentry-scrub.ts` lives in `shared/` (`@passage/shared`) — used by client and server. Typical events: post-Claude validation mismatches, pre-send leakage blocks, translation meaning failures, recall-drop alerts, and external API errors.
+Shared `sentry-scrub.ts` lives in `shared/` (`@passage/shared`). Typical events: validation mismatches, leakage blocks, **date/deadline drift** blocks, recall-drop alerts, API failures.
 
 ### Arize AX (observability)
 
@@ -222,9 +222,9 @@ Filter either UI by span name **`redaction-check`** or attribute **`redaction.ru
 
 ### Deepgram (voice)
 
-**STT:** Nova-3 live transcription in the document target language. **Defense-in-depth:** Deepgram `redact=pii,numbers` + per-language keyword boosting for names (`server/src/lib/deepgram-keywords.ts`). **Important:** raw audio (including spoken PII) still reaches Deepgram — mic disclaimer applies; client redacts transcript before Claude.
+**STT:** Nova-3 in the document target language. **The text path and audio path are not equivalent:** pasted/uploaded text is redacted before any third party; **spoken audio reaches Deepgram as raw audio** (including spoken PII) before client-side transcript redaction. Defense-in-depth: `redact=pii,numbers`, keyword boosting, mic disclaimer — but the structural exposure remains.
 
-Browser uses a short-lived grant from `POST /api/deepgram-token` when the API key allows it; otherwise audio is proxied through `POST /api/voice/transcribe` (`server/src/lib/deepgram.ts`, `client/src/lib/voice.ts`).
+Browser uses a short-lived grant from `POST /api/deepgram-token` when the API key allows it; otherwise audio is proxied through `POST /api/voice/transcribe`.
 
 **TTS:** Aura-2 speaks **tokenized explanation text only** (explanation section extracted server-side; PII safety assert before synthesis). Endpoints: `POST /api/voice/speak` and TTS text returned from voice Q&A.
 
@@ -248,34 +248,46 @@ Mic disclaimer in UI: users should type ID numbers rather than speak them — ST
 
 | Layer | Behavior |
 |---|---|
-| **Detection (input)** | Best-effort — regex + `Xenova/bert-base-NER` (CoNLL-2003; weak on non-Latin names). Undetected PII can pass. |
-| **Pre-send scan** | Re-checks known pattern classes only — cannot catch what detection missed |
-| **In-browser extraction** | PDF/image via pdf.js + Tesseract.js — raw bytes stay on device (server fallback rate-limited) |
+| **Detection (input)** | **Recall-first** — NER kept at score ≥ 0.35; label-line names include non-Latin scripts; undetected PII still passes |
+| **Detection ceiling** | Measuring NAME recall does not fix misses — e.g. 0.6 recall ⇒ ~40% of names may reach Claude |
+| **Pre-send scan** | Re-checks known pattern classes only |
+| **In-browser extraction** | PDF/image via pdf.js + Tesseract.js (server fallback rate-limited) |
 | **Explicit send gate** | Nothing hits the network until **Send for translation** |
-| **Claude payload** | `⟦PII:TYPE:n⟧` tokens only (for detected spans) |
+| **Claude payload** | Tokens only (for detected spans) |
 | **Post-Claude validation** | Token check + raw-leak scan — **fail closed** |
-| **Back-translation verify** | Dates/deadlines diffed after translate — **fail closed** on drift |
-| **Tokenized API display** | Translation/voice answers show tokens; local reinsert from `tokenMap` is privacy-neutral (optional) |
-| **Third-party exposure** | **Deepgram STT** receives raw audio; **server extract fallback** receives raw file bytes |
-| **Per-type recall** | OTEL + Sentry alert when aggregate or NAME recall drops below `RECALL_ALERT_THRESHOLD` |
-| **No raw PII in Redis** | Markers, rate limits, launcher heartbeat, redacted cache/memory only |
+| **Back-translation verify** | **Dates + day-count deadlines only** — fail closed if missing; wrong clause attachment not caught |
+| **Voice STT** | Raw audio → Deepgram **before** redaction; transcript redacted before Claude |
+| **Per-type recall** | OTEL + Sentry when recall or NAME recall &lt; `RECALL_ALERT_THRESHOLD` |
+
+---
+
+## What we don't claim
+
+Volunteer these in a judged room — credibility beats polish.
+
+| Exposure | Reality |
+|---|---|
+| **Undetected names** | Best-effort detection with recall-first tuning; names without label anchors or outside NER training can still reach Claude |
+| **Raw audio to Deepgram** | Spoken PII hits a third party before redaction; mic disclaimer relies on user compliance |
+| **Server extract fallback** | If client-side pdf.js/Tesseract fails, raw file bytes hit the server (rate-limited) |
+| **Translation correctness** | Date/deadline back-translate catches one failure mode; it does not verify that form fields or legal meaning are correct |
+
+**Thesis:** the innovation is **what you don't send**, not what the model does. Backend = prompt + API call; privacy architecture + verification harness = the sophistication.
 
 ---
 
 ## Features built
 
 ### Detection & redaction
-- 9 synthetic docs (7 hand-labeled + 2 planted: Sentry validation failure, pre-send leakage block)
-- Privacy tab: per-type counts, span confidence, amber token highlights, expandable Claude payload
-- Optional manual redact (Privacy tab or full-screen edit) with **match-all** for repeated strings
-- Per-doc recall score + **per-type recall** (`NAME`, `A_NUMBER`, etc.) → observability backend
+- **Recall-first policy** — NER threshold 0.35; label-line capture for non-Latin names; prefer over-redaction to leaking names
+- 9 synthetic docs (7 hand-labeled + 2 planted failures)
+- Privacy tab: per-type counts, confidence, token highlights, expandable Claude payload
+- Optional manual redact with **match-all**; per-type recall → observability
 
 ### Translation
-- Claude Sonnet 4.6 — structured tool output, immigration glossary, prompt caching
-- Back-translation verification for dates/deadlines — fail-closed on meaning drift
-- Side-by-side redacted source + tokenized translation
-- Manual **Listen** control on explanation TTS; localized native-voice vs English-fallback warning per language
-- Fail-closed blocked state (tokens, leaks, or meaning check)
+- Structured tool output, immigration glossary, prompt caching
+- **Date/deadline back-translation** — fail-closed if dates or "within N days" vanish (not general QA)
+- Fail-closed blocked state (tokens, leaks, or date/deadline check)
 
 ### Related documents
 - After translation, **prefetches** associated document types in the background (no wait for TTS)
@@ -283,23 +295,10 @@ Mic disclaimer in UI: users should type ID numbers rather than speak them — ST
 - Responses localized via `target_language` (matches UI / translation picker)
 
 ### Voice
-- Deepgram Nova-3 STT in the **document target language** (client token or server-proxy — key never in browser)
-- Client-side **voice question redaction** before Claude (`prepareVoiceQuestion`)
-- Voice answers validated fail-closed; display and TTS stay tokenized
-- Multi-turn Q&A via **Redis Agent Memory** when configured
-- **LangCache** instant answers for repeated FAQ on same doc (hit rate + similarity surfaced in UI)
-- Explanation-only TTS read-back on Translation and Voice tabs (manual play; optional **auto-play answer** checkbox on Voice tab)
-- Mic disclaimer: *"Please type any ID numbers — don't say them out loud"* (localized)
-
-#### Voice language support (STT vs TTS)
-
-| | Supported |
-|---|---|
-| **STT (speech input)** | All 11 languages — mic uses the language you selected for translation (e.g. Chinese → `zh-CN`) |
-| **TTS (read-back)** | **Native Aura-2 voice:** Spanish, French, Portuguese (plus de/it/ja/nl voice IDs when those languages are added to the picker) |
-| **TTS fallback** | **English voice reads target-language text:** Chinese, Vietnamese, Korean, Arabic, Hindi, Tagalog, Ukrainian |
-
-Deepgram Nova-3 transcribes all offered languages. Aura-2 TTS does not yet ship native voices for every language we translate into — for the fallback languages above, listen-back still works but uses an English voice model on tokenized explanation text (no raw PII). The fallback notice is **translated in the UI** (e.g. Chinese users see the warning in Chinese). Translation and voice **answers** are still in the target language; only the TTS accent is English until Deepgram adds those voices.
+- **Text path ≠ audio path** — see [What we don't claim](#what-we-dont-claim)
+- Deepgram Nova-3 STT (all 11 languages); client-side transcript redaction before Claude
+- LangCache hit rate + similarity; explanation-only TTS (native Aura-2 for es/fr/pt; English fallback for others)
+- Mic disclaimer: type ID numbers, don't speak them (localized)
 
 ### Observability (Phoenix + Arize AX)
 - Dual-target export — choose at launch
@@ -340,6 +339,7 @@ node scripts/verify-connection-lost.mjs     # Playwright — connection-lost UI 
 
 npm run score:redaction -- run-before-fix
 npm run score:redaction -- run-after-fix   # from server/ — compare trend in observability UI
+npm run sync:synthetic-docs --prefix server   # regenerate JSON from client/src/data/synthetic-docs.ts
 npm run export:eval-dataset --prefix server   # Arize eval dataset JSONL
 ```
 
