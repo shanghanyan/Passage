@@ -119,6 +119,29 @@ This DSN is meant to be public. It is **not** the server `SENTRY_DSN` above.
 
 See `client/.env.local.example` for the template.
 
+## Phase 5 & 6 tests
+
+```bash
+cd server
+npm run test:phase5   # Phoenix reachable + recall scoring (two runs)
+npm run test:phase6   # Deepgram token + voice Q&A + TTS (no raw PII in speak payload)
+```
+
+## Phase 6 — Voice
+
+`DEEPGRAM_API_KEY` stays server-only. The browser never receives it.
+
+- **Client token mode** (if your key supports `/v1/auth/grant`): live streaming STT in the browser
+- **Server-proxy mode** (your current key): mic records → `POST /api/voice/transcribe` → still no API key in the browser
+
+Demo: translate a doc → **Voice** tab → mic → ask *"What does RFE mean?"* → check **TTS preview** for zero raw PII → hear audio.
+
+## UI draft integration
+
+Styles: `client/src/styles/passage-draft.css` (from `passage UI draft.html`).  
+Components: `client/src/ui/` (same CSS class names).  
+Logic: `client/src/hooks/usePassageFlow.ts` — update this when behavior changes, re-extract CSS when the draft changes (`client/src/ui/README.md`).
+
 ## Getting started
 
 ```bash

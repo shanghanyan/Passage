@@ -42,6 +42,46 @@ export async function translateRedactedText(
   }
 }
 
+const VOICE_ADDENDUM = `
+
+The user is asking a follow-up question about the redacted document below.
+Answer in {{target_language}} using the same rules as before.
+Use only the redacted document context — never guess token values.
+Keep the answer concise and suitable for text-to-speech (no markdown tables).`;
+
+export async function answerVoiceQuestion(
+  redactedText: string,
+  targetLanguage: string,
+  transcript: string,
+): Promise<{ answer: string; traceId: string }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
+
+  const anthropic = new Anthropic({ apiKey });
+  const system =
+    SYSTEM_PROMPT.replace("{{target_language}}", targetLanguage) +
+    VOICE_ADDENDUM.replace("{{target_language}}", targetLanguage);
+
+  const userContent = `Redacted document:\n${redactedText}\n\nUser question: ${transcript}`;
+
+  try {
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 800,
+      system,
+      messages: [{ role: "user", content: userContent }],
+    });
+
+    const block = message.content[0];
+    if (block.type !== "text") throw new Error("Unexpected Claude response shape");
+
+    return { answer: block.text, traceId: message.id };
+  } catch (err) {
+    captureExternalError("claude-voice", err, { targetLanguage });
+    throw err;
+  }
+}
+
 const TOKEN_PATTERN = /⟦PII:[A-Z_]+:\d+⟧/g;
 
 function uniqueTokens(text: string): string[] {

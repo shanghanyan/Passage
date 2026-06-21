@@ -8,6 +8,8 @@
     "start": "node dist/index.js",
     "build": "tsc",
     "test:phases": "tsx scripts/test-phases.ts",
+    "test:phase5": "tsx scripts/test-phase5.ts",
+    "test:phase6": "tsx scripts/test-phase6.ts",
     "score:redaction": "tsx scripts/score-redaction-set.ts"
   },
   "dependencies": {

@@ -3,9 +3,13 @@ import "./instrumentation.js";
 import cors from "cors";
 import express from "express";
 import { initSentry } from "./lib/sentry.js";
+import { postDeepgramToken } from "./routes/deepgram-token.js";
 import { postRedactionSessionToken } from "./routes/redaction-session-token.js";
 import { postScoreRedaction } from "./routes/score-redaction.js";
 import { postTranslate } from "./routes/translate.js";
+import { postVoiceTranscribe } from "./routes/voice-transcribe.js";
+import { postVoiceQuestion } from "./routes/voice-question.js";
+import { postVoiceSpeak } from "./routes/voice-speak.js";
 import { verifyClaudeHello, verifyRedis } from "./startup.js";
 
 initSentry();
@@ -14,6 +18,9 @@ const app = express();
 const port = Number(process.env.PORT) || 3001;
 
 app.use(cors());
+app.post("/api/voice/transcribe", express.raw({ type: "*/*", limit: "10mb" }), (req, res) => {
+  void postVoiceTranscribe(req, res);
+});
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => {
@@ -22,6 +29,15 @@ app.get("/api/health", (_req, res) => {
 
 app.post("/api/redaction-session-token", postRedactionSessionToken);
 app.post("/api/score-redaction", postScoreRedaction);
+app.post("/api/deepgram-token", (req, res) => {
+  void postDeepgramToken(req, res);
+});
+app.post("/api/voice/question", (req, res) => {
+  void postVoiceQuestion(req, res);
+});
+app.post("/api/voice/speak", (req, res) => {
+  void postVoiceSpeak(req, res);
+});
 app.post("/api/translate", (req, res) => {
   void postTranslate(req, res);
 });

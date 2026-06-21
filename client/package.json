@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@deepgram/sdk": "^4.11.3",
     "@huggingface/transformers": "^4.2.0",
     "@sentry/react": "^10.59.0",
     "react": "^19.0.0",
