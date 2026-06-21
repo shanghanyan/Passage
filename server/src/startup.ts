@@ -1,17 +1,41 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createClient, type RedisClientType } from "redis";
+import { Redis as UpstashRedis } from "@upstash/redis";
+import { createClient } from "redis";
 
-export async function connectRedis(): Promise<RedisClientType> {
-  const url = process.env.REDIS_URL;
-  if (!url) {
-    throw new Error("REDIS_URL is not set in server/.env");
+export async function verifyRedis(): Promise<void> {
+  const restUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const restToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (restUrl && restToken) {
+    const redis = new UpstashRedis({ url: restUrl, token: restToken });
+    const pong = await redis.ping();
+    if (pong !== "PONG") {
+      throw new Error("Upstash REST ping failed");
+    }
+    console.log("Redis connected via Upstash REST (PING ok)");
+    return;
   }
 
-  const client = createClient({ url });
+  const url = process.env.REDIS_URL;
+  if (!url) {
+    throw new Error(
+      "Set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN (recommended) or REDIS_URL in server/.env",
+    );
+  }
+
+  const client = createClient({
+    url,
+    socket: { connectTimeout: 15_000 },
+  });
   client.on("error", (err) => console.error("Redis client error:", err.message));
-  await client.connect();
-  await client.ping();
-  return client as RedisClientType;
+
+  try {
+    await client.connect();
+    await client.ping();
+    console.log("Redis connected via TCP (PING ok)");
+  } finally {
+    await client.quit().catch(() => undefined);
+  }
 }
 
 export async function verifyClaudeHello(): Promise<string> {

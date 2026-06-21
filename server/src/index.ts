@@ -1,7 +1,7 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
-import { connectRedis, verifyClaudeHello } from "./startup.js";
+import { verifyClaudeHello, verifyRedis } from "./startup.js";
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
@@ -24,9 +24,7 @@ app.post("/api/translate", (_req, res) => {
 
 async function main() {
   try {
-    const redis = await connectRedis();
-    console.log("Redis connected (PING ok)");
-    await redis.quit();
+    await verifyRedis();
   } catch (err) {
     console.error("Redis startup check failed:", (err as Error).message);
     process.exit(1);
